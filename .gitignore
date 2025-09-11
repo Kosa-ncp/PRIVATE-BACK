@@ -1,0 +1,31 @@
+# Python bytecode
+*.pyc
+__pycache__/
+
+# Virtual environment
+.venv/
+env/
+
+# Instance folder for configuration and database
+instance/
+
+# Test-related files
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Build and distribution files
+dist/
+build/
+*.egg-info/
+
+# Editor-specific files (examples)
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Sensitive information (e.g., API keys, database credentials)
+# This is an example; adjust based on your project's needs
+.env
+config.py # if it contains sensitive info
