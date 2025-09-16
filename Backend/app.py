@@ -2,7 +2,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 
 from chatbot import test
-import asset_management
+from asset_management import *
 
 app = Flask(__name__)
 
@@ -84,7 +84,7 @@ def portfolio_add():
 
 # 포트폴리오 자산수정
 @app.patch("/api/portfolio")
-def portfolio_add():
+def portfolio_patch():
     return patch_user_portfolio()
 
 # 포트폴리오 삭제
