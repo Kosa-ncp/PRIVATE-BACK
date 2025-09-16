@@ -63,6 +63,54 @@ def portfolio_data1():
     }
 
     return jsonify(sample_portfolio)
+
+@app.route("/api/portfolio_test2")
+def portfolio_data2():
+    sample_portfolio = {
+        "portfolio": [
+            {
+                "data": {
+                "assetId": "string",
+                    "assetName": "삼성전자",
+                    "assetType": "국내주식",
+                    "createdAt": "20250101",
+                    "purchasePrice": "10000",
+                    "quantity": "10",
+                    "updatedAt": "20250912"
+                },
+                "message": "테스트",
+                "status": "success"
+            }
+            ,{
+                "data": {
+                    "assetId": "string",
+                    "assetName": "테슬라",
+                    "assetType": "해외주식",
+                    "createdAt": "20250101",
+                    "purchasePrice": "200000",
+                    "quantity": "25",
+                    "updatedAt": "20250916"
+                },
+                "message": "테스트",
+                "status": "success"
+            }
+            ,{
+                "data": {
+                    "assetId": "string",
+                    "assetName": "예금",
+                    "assetType": "예적금",
+                    "createdAt": "20250101",
+                    "purchasePrice": "3000000",
+                    "quantity": "1",
+                    "updatedAt": "20250916"
+                },
+                "message": "테스트",
+                "status": "success"
+            }
+        ]
+    }
+
+    return jsonify(sample_portfolio)
 """
 # API 연결 확인용 코드 (end)
 """
