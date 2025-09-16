@@ -9,6 +9,42 @@ app = Flask(__name__)
 CORS(app)
 
 """
+# 포트폴리오 CRUD (start)
+# author: 이승원
+"""
+
+# 포트폴리오 자산입력
+@app.post("/api/portfolio")
+def portfolio_add():
+    data = request.get_json()
+    # 예외직접 컨트롤 할때
+    # data = request.get_json(silent=True) 
+    #if data is None and required:
+    #    return None, (jsonify(error="MalformedJSON", message="Invalid JSON body"), 400)
+    print("받은 데이터: ", data)
+
+    return add_user_portfolio(data)
+
+# 포트폴리오 조회
+@app.get("/api/portfolio/<id>")
+def portfolio_get(id):
+    return get_user_portfolio_list(id)
+
+# 포트폴리오 자산수정
+@app.patch("/api/portfolio")
+def portfolio_patch():
+    return patch_user_portfolio()
+
+# 포트폴리오 삭제
+@app.delete("/api/portfolio/<id>")
+def portfolio_del(id):
+    return del_user_portfolio(id)
+
+"""
+# 포트폴리오 CRUD (end)
+"""
+
+"""
 # API 연결 확인용 코드 (start)
 """
 @app.route("/")
@@ -113,33 +149,4 @@ def portfolio_data2():
     return jsonify(sample_portfolio)
 """
 # API 연결 확인용 코드 (end)
-"""
-
-"""
-# 포트폴리오 CRUD (start)
-# author: 이승원
-"""
-
-# 포트폴리오 조회
-@app.get("/api/portfolio/<id>")
-def portfolio_get(id):
-    return get_user_portfolio_list(id)
-
-# 포트폴리오 자산입력
-@app.post("/api/portfolio")
-def portfolio_add():
-    return add_user_portfolio()
-
-# 포트폴리오 자산수정
-@app.patch("/api/portfolio")
-def portfolio_patch():
-    return patch_user_portfolio()
-
-# 포트폴리오 삭제
-@app.delete("/api/portfolio/<id>")
-def portfolio_del(id):
-    return del_user_portfolio(id)
-
-"""
-# 포트폴리오 CRUD (end)
 """
