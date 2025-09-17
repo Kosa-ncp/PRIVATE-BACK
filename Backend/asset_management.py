@@ -299,78 +299,137 @@ def now_iso():
 
 ###
 # 대시보드 (내용 길어지면 파일 분리하기)
-def get_user_dashboard(data):
+def get_user_dashboard(user_id):
     # 데이터 가공
     totalAssets = 0     # sum (currentPrice * quantity) -> valuation
     investmentPrincipal = 0 # sum(averagePrice * quantity)
     profitAndLoss = 0   # sum(profit = valuation - (averagePrice * quantity))
     assetsCount = 0 # assetType 에서 뽑기
-    assetType = []  # rateOfReturn:  math.floor(profit / (averagePrice * quantity) * 10000) / 100
+
+    total_principal_kor = 0.00
+    total_principal_for = 0.00
+    total_principal_virtual = 0.00
+    total_principal_deposit = 0.00
+    total_principal_cash = 0.00
+
+    total_valuation_kor = 0.00
+    total_valuation_for = 0.00
+    total_valuation_virtual = 0.00
+    total_valuation_deposit = 0.00
+    total_valuation_cash = 0.00
 
     user_dashboard_list = {}
     user_dashboard_list["status"] = "fail"
     user_dashboard_list["data"] = {
-        "totalAssets": 1,   # 총 자산
-        "investmentPrincipal": 2,   # 투자 원금
-        "profitAndLoss": 3,     # 손익
-        "assetsCount": 5,   # 자산 종류 수
+        "totalAssets": 0,   # 총 자산
+        "investmentPrincipal": 0,   # 투자 원금
+        "profitAndLoss": 0,     # 손익
+        "assetsCount": 0,   # 자산 종류 수
         "assetType": [      # 자산 종류별 수익률
             {
                 "name": "국내주식",
-                "rateOfReturn": 0.9,
+                "rateOfReturn": 0.00,
             },
             {
                 "name": "해외주식",
-                "rateOfReturn": 0.8,
+                "rateOfReturn": 0.00,
             },
             {
                 "name": "가상자산",
-                "rateOfReturn": 0.7,
+                "rateOfReturn": 0.00,
             },
             {
                 "name": "예적금",
-                "rateOfReturn": 0.6,
+                "rateOfReturn": 0.00,
             },
             {
                 "name": "현금",
-                "rateOfReturn": 0.5,
+                "rateOfReturn": 0.00,
             },
         ],    
         "report": '추가중'     # 금일 투자 리포트
     }
 
-    # db = connect_mysql()    
-    # print("DB 연결 성공")
+    db = connect_mysql()    
+    print("DB 연결 성공")
 
-    # cursor = db.cursor()
+    cursor = db.cursor()
 
-    # # 자산
-    # sql = f"""
-    #     SELECT * 
-    #       FROM USER_ASSET_LIST_TB 
-    #      WHERE user_id = {id}
-    # """
-    # print("실행 SQL: ", sql)
+    # 자산
+    sql = f"""
+        SELECT * 
+          FROM USER_ASSET_LIST_TB 
+         WHERE user_id = {user_id}
+    """
+    print("실행 SQL: ", sql)
 
-    # cursor.execute(sql)
-    # rows = cursor.fetchall()
+    cursor.execute(sql)
+    rows_user_asset = cursor.fetchall()
 
-    # # 자산 매칭
-    # for row in rows:
-    #     asset_id = row[0] #
-    #     asset_name = row[2]
-    #     asset_type = row[3]
-    #     quantity = row[4]
-    #     principal = math.floor(row[5]) # 원금
-    #     averagePrice = math.floor(row[6]) # 평단가
-    #     currentPrice = 100000    #TODO 현재가, API 통해 받기
-    #     valuation = currentPrice * quantity # 평가금액
-    #     profit = valuation - (averagePrice * quantity)
-    #     profitRate = math.floor(profit / (averagePrice * quantity) * 10000) / 100 #TODO 소수 둘째자리 처리
+    # 자산 매칭
+    for row in rows_user_asset:
+        asset_id = row[0] #
+        asset_name = row[2]
+        asset_type = row[3]
+        quantity = row[4]
+        averagePrice = math.floor(row[6]) # 평단가
+        principal = averagePrice * quantity # 원금
+        currentPrice = 100000    #TODO 현재가, API 통해 받기
+        valuation = currentPrice * quantity # 평가금액
+        profit = valuation - (averagePrice * quantity)
+        profitRate = math.floor(profit / (averagePrice * quantity) * 10000) / 100
 
+        totalAssets += valuation
+        investmentPrincipal += principal
+        profitAndLoss += profit
         
-    # db.close()
-    # print("DB 연결 종료")
+        # (전체 평가금액 - 전체 원금) / 전체 원금 * 100
+        if asset_type == "국내주식":
+            total_valuation_kor += math.floor(valuation)
+            total_principal_kor += math.floor(principal)
+        elif asset_type == "해외주식":
+            total_valuation_for += math.floor(valuation)
+            total_principal_for += math.floor(principal)
+        elif asset_type == "가상자산":
+            total_valuation_virtual += math.floor(valuation)
+            total_principal_virtual += math.floor(principal)
+        elif asset_type == "예적금":
+            total_valuation_deposit += math.floor(valuation)
+            total_principal_deposit += math.floor(principal)
+        elif asset_type == "현금":
+            total_valuation_cash += math.floor(valuation)
+            total_principal_cash += math.floor(principal)
+
+    # 자산 종류별 수익률 계산
+    if total_principal_kor > 0:
+        user_dashboard_list["data"]["assetType"][0]["rateOfReturn"] = math.floor((total_valuation_kor - total_principal_kor) / total_principal_kor * 10000) / 100
+    if total_principal_for > 0:
+        user_dashboard_list["data"]["assetType"][1]["rateOfReturn"] = math.floor((total_valuation_for - total_principal_for) / total_principal_for * 10000) / 100
+    if total_principal_virtual > 0:
+        user_dashboard_list["data"]["assetType"][2]["rateOfReturn"] = math.floor((total_valuation_virtual - total_principal_virtual) / total_principal_virtual * 10000) / 100
+    if total_principal_deposit > 0:
+        user_dashboard_list["data"]["assetType"][3]["rateOfReturn"] = math.floor((total_valuation_deposit - total_principal_deposit) / total_principal_deposit * 10000) / 100
+    if total_principal_cash > 0:
+        user_dashboard_list["data"]["assetType"][4]["rateOfReturn"] = math.floor((total_valuation_cash - total_principal_cash) / total_principal_cash * 10000) / 100
+
+    # 자산 종류 수
+    sql = f"""
+        SELECT COUNT(DISTINCT asset_type)
+          FROM USER_ASSET_LIST_TB
+         WHERE user_id = {user_id}
+    """
+    print("실행 SQL: ", sql)
+
+    cursor.execute(sql)
+    row_asset_count = cursor.fetchone()
+
+    user_dashboard_list["data"]["assetsCount"] = row_asset_count[0]
+    user_dashboard_list["data"]["totalAssets"] = math.floor(totalAssets)
+    user_dashboard_list["data"]["investmentPrincipal"] = math.floor(investmentPrincipal)
+    user_dashboard_list["data"]["profitAndLoss"] = math.floor(profitAndLoss)
+
+    db.close()
+    print("DB 연결 종료")
 
     user_dashboard_list["status"] = "success"
 
