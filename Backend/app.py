@@ -26,9 +26,11 @@ def portfolio_add():
     return add_user_portfolio(data)
 
 # 포트폴리오 조회
-@app.get("/api/portfolio/<id>")
-def portfolio_get(id):
-    return get_user_portfolio_list(id)
+@app.get("/api/portfolio")
+def portfolio_get():
+    user_id = request.headers.get('Authorization')
+    user_id = user_id.split(" ", 1)[1]
+    return get_user_portfolio_list(user_id)
 
 # 포트폴리오 자산수정
 @app.patch("/api/portfolio")
@@ -38,7 +40,7 @@ def portfolio_patch():
     return patch_user_portfolio(data)
 
 # 포트폴리오 삭제
-@app.delete("/api/portfolio/<id>")
+@app.delete("/api/portfolio")
 def portfolio_del(id):
     return del_user_portfolio(id)
 
