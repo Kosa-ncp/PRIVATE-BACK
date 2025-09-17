@@ -9,6 +9,24 @@ app = Flask(__name__)
 CORS(app)
 
 """
+# 대시보드 CRUD (start)
+# author: 이승원
+"""
+
+# 대시보드 조회
+@app.get("/api/search")
+def dashboard_get():
+    user_id = request.headers.get('Authorization')
+    user_id = user_id.split(" ", 1)[1]
+    return get_user_dashboard(user_id)
+
+"""
+# 대시보드 CRUD (start)
+# author: 이승원
+"""
+
+
+"""
 # 포트폴리오 CRUD (start)
 # author: 이승원
 """

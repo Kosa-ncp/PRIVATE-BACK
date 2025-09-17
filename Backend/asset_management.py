@@ -6,6 +6,8 @@
 ### 할일
 # - XSS 공격 방지
 # - CRUD 완성
+#       - asset_id 유일하게 주기
+#       - asset_id key로 조회 외 CRUD 완성
 # - 예외처리 및 데이터 없는건?
 # - 데이터 값 유효하지 않으면 기본값이라도 넣어야 될 듯
 
@@ -293,3 +295,79 @@ def connect_mysql():
 def now_iso():
     # 서버 시간(UTC) ISO8601
     return datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+###
+# 대시보드 (내용 길어지면 파일 분리하기)
+def get_user_dashboard(data):
+    # 데이터 가공
+    totalAssets = 0
+    investmentPrincipal = 0
+    profitAndLoss = 0
+    assetsCount = 0
+    assetType = []
+
+    user_dashboard_list = {
+        "totalAssets": 1,   # 총 자산
+        "investmentPrincipal": 2,   # 투자 원금
+        "profitAndLoss": 3,     # 손익
+        "assetsCount": 5,   # 자산 종류 수
+        "assetType": [      # 자산 종류별 수익률
+            {
+                "name": "국내주식",
+                "rateOfReturn": 0.9,
+            },
+            {
+                "name": "해외주식",
+                "rateOfReturn": 0.8,
+            },
+            {
+                "name": "가상자산",
+                "rateOfReturn": 0.7,
+            },
+            {
+                "name": "예적금",
+                "rateOfReturn": 0.6,
+            },
+            {
+                "name": "현금",
+                "rateOfReturn": 0.5,
+            },
+        ],    
+        "report": '추가중'     # 금일 투자 리포트
+    }
+
+    # db = connect_mysql()    
+    # print("DB 연결 성공")
+
+    # cursor = db.cursor()
+
+    # # 자산
+    # sql = f"""
+    #     SELECT * 
+    #       FROM USER_ASSET_LIST_TB 
+    #      WHERE user_id = {id}
+    # """
+    # print("실행 SQL: ", sql)
+
+    # cursor.execute(sql)
+    # rows = cursor.fetchall()
+
+    # # 자산 매칭
+    # for row in rows:
+    #     asset_id = row[0] #
+    #     asset_name = row[2]
+    #     asset_type = row[3]
+    #     quantity = row[4]
+    #     principal = math.floor(row[5]) # 원금
+    #     averagePrice = math.floor(row[6]) # 평단가
+    #     currentPrice = 100000    #TODO 현재가, API 통해 받기
+    #     valuation = currentPrice * quantity # 평가금액
+    #     profit = valuation - (averagePrice * quantity)
+    #     profitRate = math.floor(profit / (averagePrice * quantity) * 10000) / 100 #TODO 소수 둘째자리 처리
+
+        
+    # db.close()
+    # print("DB 연결 종료")
+
+    return jsonify(user_dashboard_list)
