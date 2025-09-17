@@ -414,7 +414,7 @@ def get_user_dashboard(user_id):
 
     # 자산 종류 수
     sql = f"""
-        SELECT COUNT(DISTINCT asset_type)
+        SELECT COUNT(DISTINCT asset_name)
           FROM USER_ASSET_LIST_TB
          WHERE user_id = {user_id}
     """
