@@ -35,7 +35,7 @@ def dashboard_get():
 @app.post("/api/portfolio")
 def portfolio_add():
     data = request.get_json()
-    data["userId"] = request.headers.get('Authorization')
+    data["userId"] = get_user_id()
     # 예외직접 컨트롤 할때
     # data = request.get_json(silent=True) 
     #if data is None and required:
@@ -46,25 +46,34 @@ def portfolio_add():
 # 포트폴리오 조회
 @app.get("/api/portfolio")
 def portfolio_get():
-    user_id = request.headers.get('Authorization')
-    user_id = user_id.split(" ", 1)[1]
-    return get_user_portfolio_list(user_id)
+    return get_user_portfolio_list(get_user_id())
 
 # 포트폴리오 자산수정
 @app.patch("/api/portfolio")
 def portfolio_patch():
     data = request.get_json()
-    data["userId"] = request.headers.get('Authorization')
+    data["userId"] = get_user_id()
+
     return patch_user_portfolio(data)
 
 # 포트폴리오 삭제
 @app.delete("/api/portfolio")
-def portfolio_del(id):
-    return del_user_portfolio(id)
+def portfolio_del():
+    data = request.get_json()
+    data["userId"] = get_user_id()
+
+    return del_user_portfolio(data)
 
 """
 # 포트폴리오 CRUD (end)
 """
+
+# user_id 추출, header에서 Authorization 값 추출
+def get_user_id():
+    user_id = request.headers.get('Authorization')
+    user_id = user_id.split(" ", 1)[1]
+
+    return user_id
 
 """
 # API 연결 확인용 코드 (start)
