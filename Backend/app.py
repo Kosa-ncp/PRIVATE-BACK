@@ -17,11 +17,11 @@ CORS(app)
 @app.post("/api/portfolio")
 def portfolio_add():
     data = request.get_json()
+    data["userId"] = request.headers.get('Authorization')
     # 예외직접 컨트롤 할때
     # data = request.get_json(silent=True) 
     #if data is None and required:
     #    return None, (jsonify(error="MalformedJSON", message="Invalid JSON body"), 400)
-    print("받은 데이터: ", data)
 
     return add_user_portfolio(data)
 
@@ -33,7 +33,9 @@ def portfolio_get(id):
 # 포트폴리오 자산수정
 @app.patch("/api/portfolio")
 def portfolio_patch():
-    return patch_user_portfolio()
+    data = request.get_json()
+    data["userId"] = request.headers.get('Authorization')
+    return patch_user_portfolio(data)
 
 # 포트폴리오 삭제
 @app.delete("/api/portfolio/<id>")
