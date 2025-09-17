@@ -301,13 +301,15 @@ def now_iso():
 # 대시보드 (내용 길어지면 파일 분리하기)
 def get_user_dashboard(data):
     # 데이터 가공
-    totalAssets = 0
-    investmentPrincipal = 0
-    profitAndLoss = 0
-    assetsCount = 0
-    assetType = []
+    totalAssets = 0     # sum (currentPrice * quantity) -> valuation
+    investmentPrincipal = 0 # sum(averagePrice * quantity)
+    profitAndLoss = 0   # sum(profit = valuation - (averagePrice * quantity))
+    assetsCount = 0 # assetType 에서 뽑기
+    assetType = []  # rateOfReturn:  math.floor(profit / (averagePrice * quantity) * 10000) / 100
 
-    user_dashboard_list = {
+    user_dashboard_list = {}
+    user_dashboard_list["status"] = "fail"
+    user_dashboard_list["data"] = {
         "totalAssets": 1,   # 총 자산
         "investmentPrincipal": 2,   # 투자 원금
         "profitAndLoss": 3,     # 손익
@@ -369,5 +371,7 @@ def get_user_dashboard(data):
         
     # db.close()
     # print("DB 연결 종료")
+
+    user_dashboard_list["status"] = "success"
 
     return jsonify(user_dashboard_list)
