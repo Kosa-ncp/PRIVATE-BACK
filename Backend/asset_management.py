@@ -155,7 +155,7 @@ def get_user_portfolio_list(id):
             "assetId": asset_id,  #TODO 확인필요
             "assetName": asset_name,
             "assetType": asset_type,
-            "quantity": quantity if asset_type.find("가상자산") < 0 else math.floor(quantity),
+            "quantity": quantity if asset_type.find("가상자산") > -1 else math.floor(quantity),
             "currentPrice": currentPrice,
             "valuation": math.floor(valuation),
             "averagePrice": averagePrice,  # 사용자 입력
