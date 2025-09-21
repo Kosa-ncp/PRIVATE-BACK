@@ -20,6 +20,7 @@
 # - 매수: 원금과 수량 받아 평단가(averagePrice) 수정, 매도
 # - CRUD 때 id 확인 해야 함 (최소한 인증 과정 필요)
 
+import decimal
 import os, pymysql, math, uuid
 from dotenv import load_dotenv
 from flask import jsonify
@@ -219,8 +220,8 @@ def get_user_portfolio_list(user_id):
 # 단건 수정
 def patch_user_portfolio(data):
     assetId = data.get("assetId", None)
-    purchasePrice = data.get("purchasePrice", None)
-    quantity = data.get("quantity", None)
+    purchasePrice = int(data.get("purchasePrice", None))
+    quantity = decimal.Decimal(data.get("quantity", None))
     requestUserId = data.get("userId", None)
 
     updateAt = now_iso()
@@ -258,7 +259,7 @@ def patch_user_portfolio(data):
     if assetType == "예적금" or assetType == "현금":
         quantity = 1
     # 평단가 재계산
-    averagePrice = math.floor(int(purchasePrice) / int(quantity)) if quantity > 0 else 0
+    averagePrice = math.floor(purchasePrice / quantity) if quantity > 0 else 0
 
     sql = """
         UPDATE USER_ASSET_LIST_TB
