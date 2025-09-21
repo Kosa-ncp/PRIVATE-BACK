@@ -32,18 +32,36 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 DATABASE_USERNAME = os.getenv("DATABASE_USERNAME")
 DATABASE_PASSWORD = os.getenv("DATABASE_PASSWORD")
 
+SELECT_ASSET_SQL = """
+    SELECT
+        asset_id      AS assetId,
+        user_id       AS userId,
+        asset_name    AS assetName,
+        asset_type    AS assetType,
+        CASE
+            WHEN asset_type <> '가상자산' THEN TRUNCATE(quantity, 0)
+            ELSE quantity
+        END     AS quantity,
+        principal     AS principal,
+        create_at     AS createdAt,
+        update_at     AS updatedAt
+    FROM USER_ASSET_LIST_TB
+    WHERE asset_id = %s
+    LIMIT 1
+"""
+
 # 추가
 def add_user_portfolio(data):
     print("받은 데이터: ", data)
 
     token = str(uuid.uuid4())
-    tokens = token.split('-')
+    tokenArr = token.split('-')
 
-    asset_id = str(tokens[2]) + str(tokens[1]) + str(tokens[0]) + str(tokens[3]) + str(tokens[4])   # asset_id 유일하게 주기
+    asset_id = str(tokenArr[2]) + str(tokenArr[1]) + str(tokenArr[0]) + str(tokenArr[3]) + str(tokenArr[4])   # asset_id 유일하게 주기
     userId = data.get("userId", None)
     assetType = data.get("assetType", None)
     purchasePrice = data.get("purchasePrice", None)
-    averagePrice = data.get("averagePrice", None)   # DB 저장 안함
+    averagePrice = data.get("averagePrice", None)
     assetName = data.get("assetName", None)
     quantity = data.get("quantity", None)
     annualInterestRate = data.get("annualInterestRate", None)   # DB 저장 안함
@@ -191,7 +209,6 @@ def get_user_portfolio_list(user_id):
             "profitRate": profitRate # (평가금액 - 원금) / 원금 * 100
         })
         
-        
     db.close()
     print("DB 연결 종료")
 
@@ -204,53 +221,59 @@ def patch_user_portfolio(data):
     assetId = data.get("assetId", None)
     purchasePrice = data.get("purchasePrice", None)
     quantity = data.get("quantity", None)
+    requestUserId = data.get("userId", None)
+
     updateAt = now_iso()
 
     db = connect_mysql()
     print("DB 연결 성공")
     cursor = db.cursor(pymysql.cursors.DictCursor)
+    
+    # 2) 수정 대상 존재 확인
+    cursor.execute(SELECT_ASSET_SQL, (assetId,))
+    print("실행 SQL:", SELECT_ASSET_SQL, (assetId,))
+    row_check = cursor.fetchone()
 
-    check_sql = """
-        SELECT COUNT(1) as cnt
-          FROM USER_ASSET_LIST_TB
-         WHERE asset_id = %s
-    """
-    cursor.execute(check_sql, (assetId,))
-    print("실행 SQL:", check_sql, (assetId,))
-    exists = cursor.fetchone()["cnt"]
-    if not exists:
+    # 3) 없으면 404 응답
+    if not row_check:
         db.close()
-        return jsonify(error="Not Found", message=f"Portfolio(assetId={assetId}) not found"), 404
+        return jsonify({
+            "status": "error",
+            "message": f"Portfolio(assetId={assetId}) not found",
+            "data": None
+        }), 404
+    
+    # 4) user 일치하는지 확인
+    if row_check["userId"] != requestUserId:
+        db.close()
+        return jsonify({
+            "status": "error",
+            "message": f"Portfolio(user={requestUserId}) not authorized",
+            "data": None
+        }), 403
+    
+
+    # 자산 종류가 "예적금" 또는 "현금" 일때 수량 1로 고정
+    assetType = row_check["assetType"]
+    if assetType == "예적금" or assetType == "현금":
+        quantity = 1
+    # 평단가 재계산
+    averagePrice = math.floor(int(purchasePrice) / int(quantity)) if quantity > 0 else 0
 
     sql = """
         UPDATE USER_ASSET_LIST_TB
            SET principal = %s
              , quantity = %s
+             , average_price = %s
              , update_at = %s
          WHERE asset_id = %s
     """
-    print("실행 SQL:", sql, (purchasePrice, quantity, updateAt, assetId))
-    cursor.execute(sql, (purchasePrice, quantity, updateAt, assetId))
+    print("실행 SQL:", sql, (purchasePrice, quantity, averagePrice, updateAt, assetId))
+    cursor.execute(sql, (purchasePrice, quantity, averagePrice, updateAt, assetId))
     db.commit()
 
     # 5) 갱신된 레코드 조회해서 응답(프론트 편의)
-    select_sql = """
-        SELECT
-            asset_id      AS assetId,
-            user_id       AS userId,
-            asset_name    AS assetName,
-            asset_type    AS assetType,
-            CASE
-                WHEN asset_type <> '가상자산' THEN TRUNCATE(quantity, 0)
-                ELSE quantity
-            END     AS quantity,
-            principal     AS principal,
-            create_at     AS createdAt,
-            update_at     AS updatedAt
-        FROM USER_ASSET_LIST_TB
-        WHERE asset_id = %s
-    """
-    cursor.execute(select_sql, (assetId,))
+    cursor.execute(SELECT_ASSET_SQL, (assetId,))
     row = cursor.fetchone()
     db.close()
     print("DB 연결 종료")
@@ -264,35 +287,38 @@ def patch_user_portfolio(data):
 # 삭제
 def del_user_portfolio(data):
     assetId = data.get("assetId", None)
-
+    requestUserId = data.get("userId", None)
     deleted_at = now_iso()
+    asset_name = ""
 
     # 1) DB 연결
     db = connect_mysql()
     print("DB 연결 성공")
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
 
     try:
         # 2) 삭제 대상 존재/이름 확인
-        select_sql = """
-            SELECT asset_name
-              FROM USER_ASSET_LIST_TB
-             WHERE asset_id = %s
-            LIMIT 1
-        """
-        cursor.execute(select_sql, (assetId,))
-        row = cursor.fetchone()
+        cursor.execute(SELECT_ASSET_SQL, (assetId,))
+        row_check = cursor.fetchone()
 
-        if not row:
+        if not row_check:
             db.close()
             return jsonify({
                 "status": "error",
                 "message": f"Portfolio(assetId={assetId}) not found",
                 "data": None
             }), 404
+        
+        # user 일치하는지 확인
+        if row_check["userId"] != requestUserId:
+            db.close()
+            return jsonify({
+                "status": "error",
+                "message": f"Portfolio(user={requestUserId}) not authorized",
+                "data": None
+            }), 403
 
-        # default cursor면 tuple로 나옵니다.
-        asset_name = row[0]
+        asset_name = row_check["assetName"]
 
         # 3) 실제 삭제 실행 (하드 삭제)
         delete_sql = """
@@ -327,6 +353,7 @@ def del_user_portfolio(data):
             "deletedAt": deleted_at
         }
     }), 200
+
 
 
 # DB 연결
@@ -405,14 +432,14 @@ def get_user_dashboard(user_id):
     cursor = db.cursor()
 
     # 자산
-    sql = f"""
+    sql = """
         SELECT * 
           FROM USER_ASSET_LIST_TB 
-         WHERE user_id = {user_id}
+         WHERE user_id = %s
     """
-    print("실행 SQL: ", sql)
+    print("실행 SQL: ", sql, user_id)
 
-    cursor.execute(sql)
+    cursor.execute(sql, (user_id,))
     rows_user_asset = cursor.fetchall()
 
     # 자산 매칭

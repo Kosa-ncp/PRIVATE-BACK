@@ -21,8 +21,7 @@ def dashboard_get():
     return get_user_dashboard(user_id)
 
 """
-# 대시보드 CRUD (start)
-# author: 이승원
+# 대시보드 CRUD (end)
 """
 
 
