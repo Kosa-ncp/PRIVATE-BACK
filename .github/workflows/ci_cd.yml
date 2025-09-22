@@ -19,7 +19,7 @@ jobs:
       - name: Install deps (use parent requirements)
         run: |
           python -m pip install -U pip
-          python -m pip install -r PRIVATE-BACK/requirements.txt
+          python -m pip install -r ../requirements.txt
 
       - name: Run tests in Backend
         run: |
@@ -53,7 +53,7 @@ jobs:
     
             # 원격 서버(Python 3.9.21)에 라이브러리 설치
             /usr/bin/python3.9 -m pip install -U pip
-            /usr/bin/python3.9 -m pip install -r PRIVATE-BACK/requirements.txt
+            /usr/bin/python3.9 -m pip install -r ../requirements.txt
     
             # 서비스 재시작
             systemctl restart myapp.service
