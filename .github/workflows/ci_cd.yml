@@ -8,22 +8,35 @@ on:
 jobs:
   ci:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: Backend
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: { python-version: "3.9" }
-      
-      - name: Install deps (use parent requirements)
+
+      # (선택) 디렉터리 구조 확인
+      - name: Debug tree
+        run: |
+          pwd; ls -la
+          echo "---- PRIVATE-BACK"; ls -la PRIVATE-BACK || true
+          echo "---- Backend"; ls -la Backend || true
+
+      - name: Install deps (requirements 상위 폴더)
         run: |
           python -m pip install -U pip
-          python -m pip install -r ../requirements.txt
+          python -m pip install -r PRIVATE-BACK/requirements.txt
+          # requirements.txt에 pytest가 없을 가능성 대비
+          python -m pip show pytest >/dev/null 2>&1 || python -m pip install pytest
 
-      - name: Run tests in Backend
+      - name: Run tests (Backend 폴더 대상, 테스트 없으면 통과)
         run: |
-          python -m pytest -q Backend || [ $? -eq 5 ]
+          set +e
+          python -m pytest -q Backend
+          code=$?
+          if [ "$code" -eq 5 ]; then
+            echo "No tests collected; treating as success."
+            exit 0
+          fi
+          exit $code
 
   deploy:
     needs: ci
