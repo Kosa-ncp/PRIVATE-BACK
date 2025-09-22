@@ -1,0 +1,55 @@
+# .github/workflows/ci_cd.yml
+name: CI-CD
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch: {}
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"     # 3.9.21 호환 (latest patch of 3.9)
+      - run: pip install -r requirements.txt
+      - run: pytest -q
+
+  deploy:
+    needs: ci
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+    
+      - name: Copy files to server (→ 서비스가 보는 디렉터리로)
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}   # root
+          key: ${{ secrets.SSH_KEY }}
+          source: "."                         # 현재 리포 전체
+          target: "/root/PRIVATE-BACK/Backend"
+    
+      - name: Install deps & restart service
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            set -euo pipefail
+            cd /root/PRIVATE-BACK/Backend
+            # 필요시: 특정 브랜치 아티팩트만 배포한다면, scp 대상/필터를 좁히세요.
+    
+            # 원격 서버(Python 3.9.21)에 라이브러리 설치
+            /usr/bin/python3.9 -m pip install -U pip
+            /usr/bin/python3.9 -m pip install -r requirements.txt
+    
+            # 서비스 재시작
+            systemctl restart myapp.service
+    
+            # 상태/로그 힌트 출력
+            systemctl is-active myapp.service
+    
+    
