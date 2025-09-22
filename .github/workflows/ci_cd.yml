@@ -68,34 +68,34 @@ jobs:
 
 
 
-deploy:
-  needs: ci
-  runs-on: ubuntu-latest
-  steps:
-    - uses: actions/checkout@v4
-
-    - name: Copy PRIVATE-BACK to server root
-      uses: appleboy/scp-action@v0.1.7
-      with:
-        host: ${{ secrets.SSH_HOST }}
-        username: ${{ secrets.SSH_USER }}   # root
-        key: ${{ secrets.SSH_KEY }}
-        source: "PRIVATE-BACK/**"
-        target: "/root/"
-
-    - name: Install deps & restart service (server)
-      uses: appleboy/ssh-action@v1.0.3
-      with:
-        host: ${{ secrets.SSH_HOST }}
-        username: ${{ secrets.SSH_USER }}
-        key: ${{ secrets.SSH_KEY }}
-        script: |
-          set -euo pipefail
-          cd /root/PRIVATE-BACK
-          /usr/bin/python3.9 -m pip install -U pip
-          /usr/bin/python3.9 -m pip install -r requirements.txt
-          systemctl restart myapp.service
-          systemctl is-active myapp.service
-
-    
+  deploy:
+    needs: ci
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+  
+      - name: Copy PRIVATE-BACK to server root
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}   # root
+          key: ${{ secrets.SSH_KEY }}
+          source: "PRIVATE-BACK/**"
+          target: "/root/"
+  
+      - name: Install deps & restart service (server)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            set -euo pipefail
+            cd /root/PRIVATE-BACK
+            /usr/bin/python3.9 -m pip install -U pip
+            /usr/bin/python3.9 -m pip install -r requirements.txt
+            systemctl restart myapp.service
+            systemctl is-active myapp.service
+  
+      
     
