@@ -74,14 +74,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
   
-      - name: Copy PRIVATE-BACK to server root
+      # (선택) 서버에 대상 폴더 보장
+      - name: Prepare target dir
+      - uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            mkdir -p /root/PRIVATE-BACK
+  
+      - name: Copy repo to server
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}   # root
+          username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
-          source: "PRIVATE-BACK/**"
-          target: "/root/"
+          source: "."                 # ⬅️ 전체 레포(현재 워크스페이스)를 전송
+          target: "/root/PRIVATE-BACK"
+          # debug: true               # ⬅️ 필요 시 켜서 어떤 파일을 담는지 확인
   
       - name: Install deps & restart service (server)
         uses: appleboy/ssh-action@v1.0.3
@@ -97,5 +108,5 @@ jobs:
             systemctl restart myapp.service
             systemctl is-active myapp.service
   
-      
+        
     
