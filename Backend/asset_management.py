@@ -5,16 +5,14 @@
 
 ### 할일
 # - XSS 공격 방지
-# - CRUD 완성
-#       - asset_id 유일하게 주기
-#       - asset_id key로 조회 외 CRUD 완성
-# - 예외처리 및 데이터 없는건?
-# - 데이터 값 유효하지 않으면 기본값이라도 넣어야 될 듯
+# - 입력값 받을때 유효성 검사하기
 # - 컬럼 및 변수명 스네이크로 통일
 
-# - 일단은 티커랑 종목코드 가지고 있는 테이블 하나 새로 두고, 이름 없으면 입력단계에서 실패 하도록
-# 	# 승원 (제안)
 # - 추가, 수정은 그냥 해당 데이터 조회해서 전체 돌려주는걸로 (따로 함수 만들어서 관리하는게 좋을듯)
+# - 수정 때 매도,매수 구분해서 추가하고 별도 로직 추가
+# - 추가 때 average 처리 어떻게 할지?
+# - 일단은 티커랑 종목코드 가지고 있는 테이블 하나 새로 두고, 이름 없으면 입력단계에서 실패 하도록
+#    - 종목 테이블 만들고
 
 import decimal
 import os, pymysql, math, uuid
@@ -40,6 +38,7 @@ SELECT_ASSET_SQL = """
             ELSE quantity
         END     AS quantity,
         principal     AS principal,
+        average_price AS averagePrice,
         create_at     AS createdAt,
         update_at     AS updatedAt
     FROM USER_ASSET_LIST_TB
@@ -49,20 +48,21 @@ SELECT_ASSET_SQL = """
 
 # 추가
 def add_user_portfolio(data):
-    print("받은 데이터: ", data)
+    print("추가 받은 데이터: ", data)
 
     token = str(uuid.uuid4())
     tokenArr = token.split('-')
 
+    print("asfd")
+
     asset_id = str(tokenArr[2]) + str(tokenArr[1]) + str(tokenArr[0]) + str(tokenArr[3]) + str(tokenArr[4])   # asset_id 유일하게 주기
     userId = data.get("userId", None)
     assetType = data.get("assetType", None)
-    purchasePrice = data.get("purchasePrice", None)
-    averagePrice = data.get("averagePrice", 1)
     assetName = data.get("assetName", None)
-    quantity = data.get("quantity", None)
+    quantity = data.get("quantity", 1)  # 수량
     annualInterestRate = data.get("annualInterestRate", None)   # DB 저장 안함
     principal = data.get("principal", None)
+    averagePrice = data.get("averagePrice", None)
     expectedEarnings = data.get("expectedEarnings", None)   # DB 저장 안함
     openDate = data.get("openDate", None) # 안쓰는 데이터
     maturityDate = data.get("maturityDate", None) # 안쓰는 데이터
@@ -71,9 +71,10 @@ def add_user_portfolio(data):
     # 자산 종류가 "예적금" 또는 "현금" 일때 수량 1로 고정
     if assetType == "예적금" or assetType == "현금":
         quantity = 1
+        averagePrice = principal
 
     print(f"""asset_id: {asset_id}, userId: {userId}, assetType: {assetType},
-           purchasePrice: {purchasePrice}, assetName: {assetName}, 
+           assetName: {assetName}, 
            quantity: {quantity}, principal: {principal}, 
            openDate: {openDate}, maturityDate: {maturityDate}"""
     )
@@ -188,6 +189,13 @@ def get_user_portfolio_list(user_id):
         quantity = row[4]
         principal = math.floor(row[5]) # 원금
         averagePrice = math.floor(row[6]) # 평단가
+
+        # zero division 방지
+        if quantity <= 0:
+            quantity = 1
+        if averagePrice <= 0:
+            averagePrice = 1
+
         currentPrice = 100000    #TODO 현재가, API 통해 받기
         valuation = currentPrice * quantity # 평가금액
         profit = valuation - (averagePrice * quantity)
@@ -215,15 +223,19 @@ def get_user_portfolio_list(user_id):
 
 # 단건 수정
 def patch_user_portfolio(data):
+    print("수정 받은 데이터: ", data)
+    
     assetId = data.get("assetId", None)
-    purchasePrice = int(data.get("purchasePrice", None))    # 평단가, pincipal로 받아서 로직 다시
-    quantity = decimal.Decimal(data.get("quantity", None))
     requestUserId = data.get("userId", None)
-    # principal = int(data.get("principal", None))    # 원금
-    # BUY, SELL orderType
-
+    principal = data.get("principal", 0)    # 평단가
+    quantity = data.get("quantity", 1)  # 수량
+    orderType = data.get("orderType", None) # BUY 매수, SELL 매도
     updateAt = now_iso()
+    
+    principal = int(principal) if principal else 0    # 평단가
+    quantity = decimal.Decimal(quantity) if quantity else decimal.Decimal(1) # 수량
 
+    # 1) DB 연결
     db = connect_mysql()
     print("DB 연결 성공")
     cursor = db.cursor(pymysql.cursors.DictCursor)
@@ -251,15 +263,51 @@ def patch_user_portfolio(data):
             "data": None
         }), 403
     
-
-    # 자산 종류가 "예적금" 또는 "현금" 일때 수량 1로 고정
+    # 5) 실제 수정 실행
     assetType = row_check["assetType"]
+    tot_quantity = -1
+    tot_principal = -1
+    
+    if orderType == "BUY":
+        # 매수
+        tot_quantity = row_check["quantity"] + quantity
+        tot_principal = row_check["principal"] + principal
+        print("BUY quantity", row_check["quantity"], quantity, tot_quantity)
+        print("BUY principal", row_check["principal"], principal, tot_principal)
+    elif orderType == "SELL":
+        # 매도
+        tot_quantity = row_check["quantity"] - quantity
+        tot_principal = row_check["principal"] - principal
+        print("SELL quantity", row_check["quantity"], quantity, tot_quantity)
+        print("SELL principal", row_check["principal"], principal, tot_principal)
+
+    if tot_quantity < 0:
+        db.close()
+        return jsonify({
+            "status": "error",
+            "message": f"Portfolio(assetId={assetId}) 수량이 부족합니다.",
+            "data": None
+        }), 400
+    elif tot_quantity == 0:
+        # 삭제
+        del_user_portfolio(data)
+
+    if tot_principal <= 0:
+        db.close()
+        return jsonify({
+            "status": "error",
+            "message": f"Portfolio(assetId={assetId}) 원금이 부족합니다.",
+            "data": None
+        }), 400
+    
+    # 자산 종류가 "예적금" 또는 "현금" 일때 수량 1로 고정
     if assetType == "예적금" or assetType == "현금":
-        quantity = 1
+        tot_quantity = 1
     
+    tot_principal = int(tot_principal)
+
     # 평단가 재계산
-    averagePrice = math.floor(purchasePrice / quantity) if quantity > 0 else 0
-    
+    averagePrice = math.floor(tot_principal / tot_quantity) if tot_quantity > 0 else 0
 
     sql = """
         UPDATE USER_ASSET_LIST_TB
@@ -269,8 +317,8 @@ def patch_user_portfolio(data):
              , update_at = %s
          WHERE asset_id = %s
     """
-    print("실행 SQL:", sql, (purchasePrice, quantity, averagePrice, updateAt, assetId))
-    cursor.execute(sql, (purchasePrice, quantity, averagePrice, updateAt, assetId))
+    print("실행 SQL:", sql, (tot_principal, tot_quantity, averagePrice, updateAt, assetId))
+    cursor.execute(sql, (tot_principal, tot_quantity, averagePrice, updateAt, assetId))
     db.commit()
 
     # 5) 갱신된 레코드 조회해서 응답(프론트 편의)
