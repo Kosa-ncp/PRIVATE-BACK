@@ -1,4 +1,3 @@
-# .github/workflows/ci_cd.yml
 name: CI-CD
 on:
   push:
@@ -13,7 +12,6 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: "3.9" }
 
-      # 디버그: 현재 워크스페이스 구조 확인
       - name: Debug tree
         run: |
           echo "workspace: $GITHUB_WORKSPACE"
@@ -21,12 +19,10 @@ jobs:
           echo "---- depth 1 ----"
           for d in *; do [ -d "$d" ] && echo "[$d]"; ls -la "$d" || true; done
 
-      # requirements.txt 위치 자동 탐지
       - name: Locate requirements.txt
         id: req
         run: |
           set -euo pipefail
-          # 후보 경로들을 순서대로 검사 (필요하면 추가)
           for cand in \
             "requirements.txt" \
             "PRIVATE-BACK/requirements.txt" \
@@ -47,10 +43,8 @@ jobs:
         run: |
           python -m pip install -U pip
           python -m pip install -r "${{ steps.req.outputs.path }}"
-          # pytest가 요구사항에 없을 수도 있으니 보강 설치
           python -m pip show pytest >/dev/null 2>&1 || python -m pip install pytest
 
-      # 테스트 위치도 자동 감지 (Backend 우선)
       - name: Run tests (tolerate no tests)
         run: |
           set +e
@@ -66,34 +60,31 @@ jobs:
           fi
           exit $code
 
-
-
   deploy:
     needs: ci
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-  
-      # (선택) 서버에 대상 폴더 보장
+
       - name: Prepare target dir
-      - uses: appleboy/ssh-action@v1.0.3
+        uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           script: |
             mkdir -p /root/PRIVATE-BACK
-  
+
       - name: Copy repo to server
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
-          source: "."                 # ⬅️ 전체 레포(현재 워크스페이스)를 전송
+          source: "."                 # 현재 워크스페이스 전체
           target: "/root/PRIVATE-BACK"
-          # debug: true               # ⬅️ 필요 시 켜서 어떤 파일을 담는지 확인
-  
+          # debug: true
+
       - name: Install deps & restart service (server)
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -107,6 +98,3 @@ jobs:
             /usr/bin/python3.9 -m pip install -r requirements.txt
             systemctl restart myapp.service
             systemctl is-active myapp.service
-  
-        
-    
