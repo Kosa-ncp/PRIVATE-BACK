@@ -58,7 +58,7 @@ def add_user_portfolio(data):
     userId = data.get("userId", None)
     assetType = data.get("assetType", None)
     purchasePrice = data.get("purchasePrice", None)
-    averagePrice = data.get("averagePrice", None)
+    averagePrice = data.get("averagePrice", 1)
     assetName = data.get("assetName", None)
     quantity = data.get("quantity", None)
     annualInterestRate = data.get("annualInterestRate", None)   # DB 저장 안함
@@ -216,9 +216,11 @@ def get_user_portfolio_list(user_id):
 # 단건 수정
 def patch_user_portfolio(data):
     assetId = data.get("assetId", None)
-    purchasePrice = int(data.get("purchasePrice", None))
+    purchasePrice = int(data.get("purchasePrice", None))    # 평단가, pincipal로 받아서 로직 다시
     quantity = decimal.Decimal(data.get("quantity", None))
     requestUserId = data.get("userId", None)
+    # principal = int(data.get("principal", None))    # 원금
+    # BUY, SELL orderType
 
     updateAt = now_iso()
 
@@ -254,8 +256,10 @@ def patch_user_portfolio(data):
     assetType = row_check["assetType"]
     if assetType == "예적금" or assetType == "현금":
         quantity = 1
+    
     # 평단가 재계산
     averagePrice = math.floor(purchasePrice / quantity) if quantity > 0 else 0
+    
 
     sql = """
         UPDATE USER_ASSET_LIST_TB

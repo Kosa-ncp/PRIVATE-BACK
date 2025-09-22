@@ -6,7 +6,7 @@ on:
 
 jobs:
   ci:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -85,16 +85,9 @@ jobs:
           target: "/root/PRIVATE-BACK"
           # debug: true
 
-      - name: Install deps & restart service (server)
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_KEY }}
-          script: |
-            set -euo pipefail
-            cd /root/PRIVATE-BACK
-            /usr/bin/python3.9 -m pip install -U pip
-            /usr/bin/python3.9 -m pip install -r requirements.txt
-            systemctl restart myapp.service
-            systemctl is-active myapp.service
+      - name: Deploy locally (no SSH)
+        run: |
+          cd /root/PRIVATE-BACK
+          /usr/bin/python3.9 -m pip install -U pip
+          /usr/bin/python3.9 -m pip install -r requirements.txt
+          systemctl restart myapp.service
