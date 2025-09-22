@@ -8,22 +8,19 @@ on:
 jobs:
   ci:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Backend
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
-        with:
-          python-version: "3.9"     # 3.9.21 호환 (latest patch of 3.9)
-      - run: pip install -r requirements.txt
-      
-      - name: Install deps
-        run: |
+        with: { python-version: "3.9" }
+      - run: |
           python -m pip install -U pip
           python -m pip install -r requirements.txt
-          # requirements.txt에 pytest가 없다면 다음 줄 추가
+          # 필요 시 pytest 설치
           python -m pip install pytest
-
-      - name: Run tests
-        run: python -m pytest -q
+      - run: python -m pytest -q
 
   deploy:
     needs: ci
