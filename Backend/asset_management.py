@@ -308,6 +308,7 @@ def patch_user_portfolio(data):
 
     # 평단가 재계산
     averagePrice = math.floor(tot_principal / tot_quantity) if tot_quantity > 0 else 0
+    averagePrice = int(averagePrice)
 
     sql = """
         UPDATE USER_ASSET_LIST_TB

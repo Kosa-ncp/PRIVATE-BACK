@@ -3,6 +3,7 @@ from flask_cors import CORS
 
 from chatbot import test
 from asset_management import *
+from asset_info import *
 
 app = Flask(__name__)
 
@@ -177,6 +178,13 @@ def portfolio_data2():
     }
 
     return jsonify(sample_portfolio)
+
+
+# 자산 정보 추가 테스트
+@app.put("/api/inject_asset_info_test")
+def inject_asset_info_test():
+    return "update_asset_info 호출"
+    # return update_asset_info()
 """
 # API 연결 확인용 코드 (end)
 """
