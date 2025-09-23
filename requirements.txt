@@ -12,8 +12,9 @@ itsdangerous==2.2.0
 Jinja2==3.1.6
 lxml==6.0.2
 MarkupSafe==3.0.2
-narwhals==2.5.0
-numpy==2.3.3
+narwhals>=1.15.1,<2.0
+numpy==1.26.4 ; python_version < "3.13"
+numpy==2.2.0 ; python_version >= "3.13"
 packaging==25.0
 pandas==2.3.2
 plotly==6.3.0
