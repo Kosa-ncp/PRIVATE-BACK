@@ -9,14 +9,36 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Debug tree (once)
+        run: |
+          pwd; ls -la
+          echo "---- depth 1 ----"
+          for d in *; do [ -d "$d" ] && echo "[$d]"; ls -la "$d" || true; done
+
       - uses: actions/setup-python@v5
         with: { python-version: "3.9" }
-      - run: |
+
+      - name: Install deps
+        run: |
           python -V
           python -m pip install -U pip
-          python -m pip install -r PRIVATE-BACK/requirements.txt
-      - run: python -m pytest -q PRIVATE-BACK/Backend || [ $? -eq 5 ]
+          python -m pip install -r requirements.txt   # ⬅️ 여기!
+          # pytest가 requirements에 없다면:
+          python -m pip show pytest >/dev/null 2>&1 || python -m pip install pytest
 
+      - name: Run tests (없으면 통과)
+        run: |
+          set +e
+          # 코드가 Backend/ 밑에 있다면 그 폴더로 지정
+          TARGET="."
+          [ -d Backend ] && TARGET="Backend"
+          echo "pytest target: $TARGET"
+          python -m pytest -q "$TARGET"
+          code=$?
+          [ "$code" -eq 5 ] && { echo "No tests collected; treating as success."; exit 0; }
+          exit $code
+          
   deploy:
     needs: ci
     runs-on: self-hosted        # ← 서버의 러너
