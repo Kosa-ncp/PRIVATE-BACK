@@ -6,88 +6,25 @@ on:
 
 jobs:
   ci:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: { python-version: "3.9" }
-
-      - name: Debug tree
-        run: |
-          echo "workspace: $GITHUB_WORKSPACE"
-          pwd; ls -la
-          echo "---- depth 1 ----"
-          for d in *; do [ -d "$d" ] && echo "[$d]"; ls -la "$d" || true; done
-
-      - name: Locate requirements.txt
-        id: req
-        run: |
-          set -euo pipefail
-          for cand in \
-            "requirements.txt" \
-            "PRIVATE-BACK/requirements.txt" \
-            "Backend/requirements.txt" \
-            "PRIVATE-BACK/Backend/requirements.txt"
-          do
-            if [ -f "$cand" ]; then
-              echo "Found: $cand"
-              echo "path=$cand" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
-          done
-          echo "❌ requirements.txt not found in expected paths." >&2
-          echo "path=" >> "$GITHUB_OUTPUT"
-          exit 1
-
-      - name: Install deps
-        run: |
+      - run: |
+          python -V
           python -m pip install -U pip
-          python -m pip install -r "${{ steps.req.outputs.path }}"
-          python -m pip show pytest >/dev/null 2>&1 || python -m pip install pytest
-
-      - name: Run tests (tolerate no tests)
-        run: |
-          set +e
-          TEST_DIR="."
-          [ -d "PRIVATE-BACK/Backend" ] && TEST_DIR="PRIVATE-BACK/Backend"
-          [ -d "Backend" ] && TEST_DIR="Backend"
-          echo "pytest target: $TEST_DIR"
-          python -m pytest -q "$TEST_DIR"
-          code=$?
-          if [ "$code" -eq 5 ]; then
-            echo "No tests collected; treating as success."
-            exit 0
-          fi
-          exit $code
+          python -m pip install -r PRIVATE-BACK/requirements.txt
+      - run: python -m pytest -q PRIVATE-BACK/Backend || [ $? -eq 5 ]
 
   deploy:
     needs: ci
-    runs-on: ubuntu-latest
+    runs-on: self-hosted        # ← 서버의 러너
     steps:
       - uses: actions/checkout@v4
-
-      - name: Prepare target dir
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_KEY }}
-          script: |
-            mkdir -p /root/PRIVATE-BACK
-
-      - name: Copy repo to server
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_KEY }}
-          source: "."                 # 현재 워크스페이스 전체
-          target: "/root/PRIVATE-BACK"
-          # debug: true
-
-      - name: Deploy locally (no SSH)
+      - name: Install & restart on server
         run: |
-          cd /root/PRIVATE-BACK
+          /usr/bin/python3.9 -V
           /usr/bin/python3.9 -m pip install -U pip
-          /usr/bin/python3.9 -m pip install -r requirements.txt
+          /usr/bin/python3.9 -m pip install -r /root/PRIVATE-BACK/requirements.txt
           systemctl restart myapp.service
