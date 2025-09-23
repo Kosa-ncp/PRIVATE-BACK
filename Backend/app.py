@@ -183,7 +183,7 @@ def portfolio_data2():
 # 자산 정보 추가 테스트
 @app.put("/api/inject_asset_info_test")
 def inject_asset_info_test():
-    return "update_asset_info 호출"
+    return "update_asset_info 호출!"
     # return update_asset_info()
 """
 # API 연결 확인용 코드 (end)
