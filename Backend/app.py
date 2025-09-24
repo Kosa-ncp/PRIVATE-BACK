@@ -3,7 +3,7 @@ from flask_cors import CORS
 
 from chatbot import test
 from asset_management import *
-from asset_info import *
+from update_asset_info import *
 
 app = Flask(__name__)
 

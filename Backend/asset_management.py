@@ -14,11 +14,12 @@
 # - 일단은 티커랑 종목코드 가지고 있는 테이블 하나 새로 두고, 이름 없으면 입력단계에서 실패 하도록
 #    - 종목 테이블 만들고
 
-import decimal
-import os, pymysql, math, uuid
+import os, pymysql, math, uuid, decimal
 from dotenv import load_dotenv
 from flask import jsonify
 from datetime import datetime
+
+import asset_info
 
 load_dotenv()
 
@@ -48,104 +49,147 @@ SELECT_ASSET_SQL = """
 
 # 추가
 def add_user_portfolio(data):
-    print("추가 받은 데이터: ", data)
+    try:
+        print("추가 받은 데이터: ", data)
 
-    token = str(uuid.uuid4())
-    tokenArr = token.split('-')
+        token = str(uuid.uuid4())
+        tokenArr = token.split('-')
 
-    print("asfd")
+        asset_id = str(tokenArr[2]) + str(tokenArr[1]) + str(tokenArr[0]) + str(tokenArr[3]) + str(tokenArr[4])   # asset_id 유일하게 주기
+        userId = data.get("userId", None)
+        assetType = data.get("assetType", None)
+        assetName = data.get("assetName", None)
+        quantity = data.get("quantity", 1)  # 수량
+        annualInterestRate = data.get("annualInterestRate", None)   # DB 저장 안함
+        principal = data.get("principal", None)
+        averagePrice = data.get("averagePrice", None)
+        expectedEarnings = data.get("expectedEarnings", None)   # DB 저장 안함
+        openDate = data.get("openDate", None) # 안쓰는 데이터
+        maturityDate = data.get("maturityDate", None) # 안쓰는 데이터
+        updateAt = now_iso()
 
-    asset_id = str(tokenArr[2]) + str(tokenArr[1]) + str(tokenArr[0]) + str(tokenArr[3]) + str(tokenArr[4])   # asset_id 유일하게 주기
-    userId = data.get("userId", None)
-    assetType = data.get("assetType", None)
-    assetName = data.get("assetName", None)
-    quantity = data.get("quantity", 1)  # 수량
-    annualInterestRate = data.get("annualInterestRate", None)   # DB 저장 안함
-    principal = data.get("principal", None)
-    averagePrice = data.get("averagePrice", None)
-    expectedEarnings = data.get("expectedEarnings", None)   # DB 저장 안함
-    openDate = data.get("openDate", None) # 안쓰는 데이터
-    maturityDate = data.get("maturityDate", None) # 안쓰는 데이터
-    updateAt = now_iso()
+        # 자산 종류가 "예적금" 또는 "현금" 일때 수량 1로 고정
+        if assetType == "예적금" or assetType == "현금":
+            quantity = 1
+            averagePrice = principal
 
-    # 자산 종류가 "예적금" 또는 "현금" 일때 수량 1로 고정
-    if assetType == "예적금" or assetType == "현금":
-        quantity = 1
-        averagePrice = principal
+        print(f"""asset_id: {asset_id}, userId: {userId}, assetType: {assetType},
+            assetName: {assetName}, 
+            quantity: {quantity}, principal: {principal}, 
+            openDate: {openDate}, maturityDate: {maturityDate}"""
+        )
 
-    print(f"""asset_id: {asset_id}, userId: {userId}, assetType: {assetType},
-           assetName: {assetName}, 
-           quantity: {quantity}, principal: {principal}, 
-           openDate: {openDate}, maturityDate: {maturityDate}"""
-    )
+        db = connect_mysql()    
+        print("DB 연결 성공")
 
-    db = connect_mysql()    
-    print("DB 연결 성공")
+        cursor = db.cursor(pymysql.cursors.DictCursor)
 
-    cursor = db.cursor()
+        # asset_name 존재 확인
+        asset_response = asset_info.get_asset_info_single(assetName)
+        if not asset_response or not hasattr(asset_response[0], "get_json"):
+            return jsonify({
+                "status": "error",
+                "message": f"Asset(name={assetName})'s ticker no response",
+                "data": None
+            }), 500
 
-    sql = """
-        INSERT INTO USER_ASSET_LIST_TB
-        (
+        asset_json = asset_response[0].get_json()
+        if not asset_json or "data" not in asset_json or asset_json["data"] is None:
+            return jsonify({
+                "status": "error",
+                "message": f"Asset(name={assetName})'s ticker not found.",
+                "data": None
+            }), 404
+
+        ticker = asset_json["data"].get("ticker", None)
+        print("ticker:", ticker)
+
+        if not ticker:
+            candidate = asset_info.find_asset_info_list(assetName)
+
+            if candidate:
+                candidate_json = candidate[0].get_json()
+                asset_name_list = [item["assetName"] for item in candidate_json.get("data", []) if "assetName" in item]
+                
+                return jsonify({
+                    "status": "error",
+                    "message": f"Asset(name={assetName}) not found.",
+                    "data": asset_name_list
+                }), 404
+
+            return jsonify({
+                "status": "error",
+                "message": f"Asset(name={assetName}) not found."
+            }), 404
+
+        # 자산 추가
+        sql = """
+            INSERT INTO USER_ASSET_LIST_TB
+            (
+                asset_id,
+                user_id,
+                asset_name,
+                asset_type,
+                quantity,
+                principal,
+                average_price,
+                register_date,
+                expire_date,
+                create_at,
+                update_at
+            )
+            VALUES
+            (
+                %s, %s, %s, %s, %s, %s, %s, 
+                CURDATE(), 
+                %s, %s, %s
+            )
+        """
+        values = (
             asset_id,
-            user_id,
-            asset_name,
-            asset_type,
+            userId,
+            assetName,
+            assetType,
             quantity,
             principal,
-            average_price,
-            register_date,
-            expire_date,
-            create_at,
-            update_at
+            averagePrice,
+            maturityDate,
+            updateAt,  # createAt = updateAt
+            updateAt
         )
-        VALUES
-        (
-            %s, %s, %s, %s, %s, %s, %s, 
-            CURDATE(), 
-            %s, %s, %s
-        )
-    """
-    values = (
-        asset_id,
-        userId,
-        assetName,
-        assetType,
-        quantity,
-        principal,
-        averagePrice,
-        maturityDate,
-        updateAt,  # createAt = updateAt
-        updateAt
-    )
+        
+        print("실행 SQL: ", sql, values)
 
-    #DATE_FORMAT( SYSDATE(), '%y%m%d')
+        cursor.execute(sql, values)
+
+        db.commit()
+        db.close()
+        print("DB 연결 종료")
+
+        # DB 조회해서 값 가져오기
+        user_portfolio_add = {
+            "status": "success",
+            "message": "포트폴리오 추가 완료",
+            "data": {
+                "assetId": asset_id,
+                "assetName": assetName,
+                "assetType": assetType,
+                "purchasePrice": principal,
+                "principal": principal,
+                "quantity": quantity,
+                "createdAt": updateAt,
+                "registerAt": updateAt,
+                "updatedAt": updateAt
+            }
+        }	
+        
+        return jsonify(user_portfolio_add)
     
-    print("실행 SQL: ", sql, values)
-
-    cursor.execute(sql, values)
-    #rows = cursor.fetchall()
-
-    db.commit()
-    db.close()
-    print("DB 연결 종료")
-
-    # DB 조회해서 값 가져오기
-    user_portfolio_add = {
-        "status": "success",
-        "message": "포트폴리오 추가 완료",
-        "data": {
-            "assetId": asset_id,
-            "assetName": assetName,
-            "assetType": assetType,
-            "purchasePrice": principal,
-            "quantity": quantity,
-            "createdAt": updateAt,
-            "updatedAt": updateAt
-        }
-    }	
-    
-    return jsonify(user_portfolio_add)
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500
 
 # 조회
 # 자산 테이블
@@ -159,7 +203,7 @@ def get_user_portfolio_list(user_id):
     db = connect_mysql()    
     print("DB 연결 성공")
 
-    cursor = db.cursor()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
 
     # 자산
     sql = """
@@ -183,20 +227,27 @@ def get_user_portfolio_list(user_id):
 
     # 자산 매칭
     for row in rows:
-        asset_id = row[0] #
-        asset_name = row[2]
-        asset_type = row[3]
-        quantity = row[4]
-        principal = math.floor(row[5]) # 원금
-        averagePrice = math.floor(row[6]) # 평단가
+        asset_id = row["assetId"]
+        asset_name = row["assetName"]
+        asset_type = row["assetType"]
+        quantity = row["quantity"]
+        principal = math.floor(row["principal"]) # 원금
+        averagePrice = math.floor(row["averagePrice"]) # 평단가
 
         # zero division 방지
         if quantity <= 0:
             quantity = 1
         if averagePrice <= 0:
             averagePrice = 1
+        
+        
+        currentPrice = asset_info.get_current_price_with_name(asset_name)    # 현재가
+        # 자산 종류가 "예적금" 또는 "현금" 일때 수량 1로 고정
+        if asset_type == "예적금" or asset_type == "현금":
+            quantity = 1
+            averagePrice = principal
+            currentPrice = principal
 
-        currentPrice = 100000    #TODO 현재가, API 통해 받기
         valuation = currentPrice * quantity # 평가금액
         profit = valuation - (averagePrice * quantity)
         profitRate = math.floor(profit / (averagePrice * quantity) * 10000) / 100 # 소수 둘째자리 처리
@@ -280,6 +331,10 @@ def patch_user_portfolio(data):
         tot_principal = row_check["principal"] - principal
         print("SELL quantity", row_check["quantity"], quantity, tot_quantity)
         print("SELL principal", row_check["principal"], principal, tot_principal)
+    
+    # 자산 종류가 "예적금" 또는 "현금" 일때 수량 1로 고정
+    if assetType == "예적금" or assetType == "현금":
+        tot_quantity = 1
 
     if tot_quantity < 0:
         db.close()
@@ -299,12 +354,11 @@ def patch_user_portfolio(data):
             "message": f"Portfolio(assetId={assetId}) 원금이 부족합니다.",
             "data": None
         }), 400
-    
-    # 자산 종류가 "예적금" 또는 "현금" 일때 수량 1로 고정
-    if assetType == "예적금" or assetType == "현금":
-        tot_quantity = 1
-    
-    tot_principal = int(tot_principal)
+
+    # 예적금 또는 현금 가격이 0이 되었을 때
+    if tot_principal == 0 and (assetType == "예적금" or assetType == "현금"):
+        # 삭제
+        del_user_portfolio(data)
 
     # 평단가 재계산
     averagePrice = math.floor(tot_principal / tot_quantity) if tot_quantity > 0 else 0
@@ -423,6 +477,7 @@ def now_iso():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
+
 ###
 # 대시보드 (내용 길어지면 파일 분리하기)
 def get_user_dashboard(user_id):
@@ -430,7 +485,6 @@ def get_user_dashboard(user_id):
     totalAssets = 0     # sum (currentPrice * quantity) -> valuation
     investmentPrincipal = 0 # sum(averagePrice * quantity)
     profitAndLoss = 0   # sum(profit = valuation - (averagePrice * quantity))
-    assetsCount = 0 # assetType 에서 뽑기
 
     total_principal_kor = 0.00
     total_principal_for = 0.00
@@ -500,7 +554,7 @@ def get_user_dashboard(user_id):
         quantity = row[4]
         averagePrice = math.floor(row[6]) # 평단가
         principal = averagePrice * quantity # 원금
-        currentPrice = 100000    #TODO 현재가, API 통해 받기
+        currentPrice = asset_info.get_current_price_with_name(asset_name)  # 현재가
         valuation = currentPrice * quantity # 평가금액
         profit = valuation - (averagePrice * quantity)
         profitRate = math.floor(profit / (averagePrice * quantity) * 10000) / 100
