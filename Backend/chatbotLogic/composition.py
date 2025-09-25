@@ -44,7 +44,8 @@ def composition(user_id):
     )
     print(f"[composition] current_price 컬럼 추가:\n{portfolio[['ticker', 'current_price']]}")
 
-    portfolio["current_value"] = portfolio["quantity"] * portfolio["current_price"]
+    portfolio["current_value"] = portfolio["quantity"].astype(float) * portfolio["current_price"]
+    portfolio["current_value"] = portfolio["current_value"].round(2)
     print(f"[composition] current_value 컬럼 추가:\n{portfolio[['ticker', 'current_value']]}")
 
     portfolio = portfolio.rename(columns={
