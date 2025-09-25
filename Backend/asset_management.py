@@ -243,8 +243,10 @@ def get_user_portfolio_list(user_id):
         
         
         currentPrice = 0
-        if asset_type in ["국내주식", "해외주식"]:
-            currentPrice = asset_info.get_current_stock_price_with_name(asset_name)
+        if asset_type in ["국내주식"]:
+            currentPrice = asset_info.get_current_local_stock_price_with_name(asset_name)
+        elif asset_type in ["해외주식"]:
+            currentPrice = asset_info.get_current_global_stock_price_with_name(asset_name)
         elif asset_type in ["가상자산"]:
             currentPrice = asset_info.get_current_virtual_price_with_name(asset_name)
 
@@ -253,6 +255,8 @@ def get_user_portfolio_list(user_id):
             quantity = 1
             averagePrice = principal
             currentPrice = principal
+        
+        currentPrice = int(currentPrice)
 
         valuation = currentPrice * quantity # 평가금액
         profit = valuation - (averagePrice * quantity)
@@ -566,8 +570,11 @@ def get_user_dashboard(user_id):
         averagePrice = math.floor(row[6]) # 평단가
         principal = averagePrice * quantity # 원금
         currentPrice = 0  # 현재가
-        if asset_type in ["국내주식", "해외주식"]:
-            currentPrice = asset_info.get_current_stock_price_with_name(asset_name)
+        
+        if asset_type in ["국내주식"]:
+            currentPrice = asset_info.get_current_local_stock_price_with_name(asset_name)
+        elif asset_type in ["해외주식"]:
+            currentPrice = asset_info.get_current_global_stock_price_with_name(asset_name)
         elif asset_type in ["가상자산"]:
             currentPrice = asset_info.get_current_virtual_price_with_name(asset_name)
         valuation = currentPrice * quantity # 평가금액

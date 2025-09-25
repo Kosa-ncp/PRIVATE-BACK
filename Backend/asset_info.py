@@ -1,9 +1,11 @@
 from flask import jsonify
 from urllib import request as urllib_request
 from bs4 import BeautifulSoup
-from coingecko_sdk import Coingecko, APIConnectionError, APIStatusError, RateLimitError
+from coingecko_sdk import Coingecko
 from dotenv import load_dotenv
 import re, pymysql, os
+import yfinance as yf
+import FinanceDataReader as fdr
 
 import asset_management
 
@@ -95,24 +97,31 @@ def get_asset_info_current(ticker: str):
     자산 정보 현재 가격 조회 (ticker 기준)
     """
     try:
+        print(f"[INFO] get_asset_info_current: ticker={ticker}")
         url = "https://finance.naver.com/item/main.nhn?code=" + ticker  # 종목코드 또는 ticker로 조회
+        print(f"[INFO] 요청 URL: {url}")
         html = urllib_request.urlopen(url).read().decode("utf-8")
 
         # dl class 뽑기
         pattern1 = r"(\<dl class=\"blind\"\>)([\s\S]+?)(\</dl\>)"
-        # pattern1 비었을 때 예외 처리
         if not re.search(pattern1, html):
+            print(f"[ERROR] <dl class='blind'> 패턴을 찾지 못함 (ticker={ticker})")
             raise ValueError("해당 티커에 대한 정보를 찾을 수 없습니다.")
-        result = re.findall(pattern1, html)  # <dl class="blind"> </dl> 읽어오기 list type
-        result = result[0][1].strip() # html 헤더정보는 제외하고 중간의 원하는 정보만 뽑아와서 str으로 변환
+        result = re.findall(pattern1, html)
+        result = result[0][1].strip()
+        print(f"[INFO] <dl class='blind'> 추출 성공")
 
         # dd 정보들 뽑기
         pattern2 = r"(\<dd\>)([\s\S]+?)(\</dd\>)"
-        detail_results = re.findall(pattern2, result)  # 변환된 list 중 필요 정보는 <dd>태그 내부 정보만 list로 추출
+        detail_results = re.findall(pattern2, result)
+        print(f"[INFO] <dd> 태그 {len(detail_results)}개 추출")
 
         current_price = extract_current_price(detail_results)
         if current_price is None:
+            print(f"[ERROR] 현재가 추출 실패 (ticker={ticker})")
             raise ValueError("현재가 정보를 추출하지 못했습니다.")
+
+        print(f"[INFO] 현재가 추출 성공: {current_price}")
 
         return jsonify({
             "status": "success",
@@ -120,8 +129,9 @@ def get_asset_info_current(ticker: str):
                 "currentPrice": current_price
             }
         }), 200
-    
+
     except Exception as e:
+        print(f"[ERROR] get_asset_info_current 예외 발생: {e}")
         return jsonify({
             "status": "error",
             "message": str(e)
@@ -148,9 +158,9 @@ def extract_current_price(items):
 
 
 
-def get_current_stock_price_with_name(asset_name: str):
+def get_current_local_stock_price_with_name(asset_name: str):
     """
-    자산 이름으로 현재가 조회 (asset_info.py 활용)
+    자산 이름으로 국내 주식 현재가 조회 (asset_info.py 활용)
     """
 
     asset_info_response = get_asset_info_single(asset_name)
@@ -188,6 +198,8 @@ def get_current_stock_price_with_name(asset_name: str):
             except Exception as e:
                 print(f"{asset_name} sector DB 업데이트 실패: {e}")
     
+    print("ticker:", ticker, " sector:", sector)
+
     current_price_response = get_asset_info_current(ticker)
     if current_price_response[1] != 200:
         print(f"{asset_name} 현재가 조회 실패: {current_price_response[0].get_json()}")
@@ -203,6 +215,41 @@ def get_current_stock_price_with_name(asset_name: str):
 
 # 가상자산 실시간 받아오기
 def get_current_virtual_price_with_name(asset_name: str):
+    asset_info_response = get_asset_info_single(asset_name)
+    if asset_info_response[1] != 200:
+        print(f"{asset_name} 정보 조회 실패: {asset_info_response[0].get_json()}")
+        return 0
+
+    asset_data = asset_info_response[0].get_json().get("data", None)
+    if not asset_data or "ticker" not in asset_data:
+        print(f"{asset_name} 자산 정보에 ticker가 없습니다.")
+        return 0
+
+    ticker = asset_data["ticker"]
+    sector = asset_data["sector"]
+
+    # sector 값이 없는 경우 크롤링 해서 추가해주기
+    if not sector:
+        search_sector = get_sector(ticker)
+        if search_sector:
+            try:
+                db = asset_management.connect_mysql()
+                cursor = db.cursor(pymysql.cursors.DictCursor)
+                update_at = asset_management.now_iso()
+                update_sql = """
+                    UPDATE ASSET_INFO_TB
+                    SET sector = %s,
+                        update_at = %s
+                    WHERE ticker = %s
+                """
+                cursor.execute(update_sql, (search_sector, update_at, ticker))
+                db.commit()
+                db.close()
+                print(f"{asset_name} sector 정보 DB에 업데이트 완료: {search_sector}")
+                sector = search_sector
+            except Exception as e:
+                print(f"{asset_name} sector DB 업데이트 실패: {e}")
+    
     cg = Coingecko(
         environment  = "demo", 
         demo_api_key = GECKO_API_KEY
@@ -223,6 +270,55 @@ def get_current_virtual_price_with_name(asset_name: str):
         return 0
     return (int(krw))
 
+
+# 해외주식 실시간 받아오기
+def get_current_global_stock_price_with_name(asset_name: str):
+    asset_info_response = get_asset_info_single(asset_name)
+    if asset_info_response[1] != 200:
+        print(f"{asset_name} 정보 조회 실패: {asset_info_response[0].get_json()}")
+        return 0
+
+    asset_data = asset_info_response[0].get_json().get("data", None)
+    if not asset_data or "ticker" not in asset_data:
+        print(f"{asset_name} 자산 정보에 ticker가 없습니다.")
+        return 0
+
+    ticker = asset_data["ticker"]
+    sector = asset_data["sector"]
+
+    # sector 값이 없는 경우 크롤링 해서 추가해주기
+    if not sector:
+        search_sector = get_sector(ticker)
+        if search_sector:
+            try:
+                db = asset_management.connect_mysql()
+                cursor = db.cursor(pymysql.cursors.DictCursor)
+                update_at = asset_management.now_iso()
+                update_sql = """
+                    UPDATE ASSET_INFO_TB
+                    SET sector = %s,
+                        update_at = %s
+                    WHERE ticker = %s
+                """
+                cursor.execute(update_sql, (search_sector, update_at, ticker))
+                db.commit()
+                db.close()
+                print(f"{asset_name} sector 정보 DB에 업데이트 완료: {search_sector}")
+                sector = search_sector
+            except Exception as e:
+                print(f"{asset_name} sector DB 업데이트 실패: {e}")
+    
+    print("ticker:", ticker, " sector:", sector)
+    stock = yf.Ticker(ticker)
+    data = stock.info
+
+    current = data["currentPrice"]          # KeyError가 싫으면 data.get("currentPrice")
+    exchange_rate = fdr.DataReader('USD/KRW').iloc[-1][0] # 환율 정보
+
+    result_price = float(current) * float(exchange_rate)
+    result_price = int(result_price)
+
+    return result_price
 
 #####################
 # 섹터 (start)
