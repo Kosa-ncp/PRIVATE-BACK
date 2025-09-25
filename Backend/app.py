@@ -38,6 +38,10 @@ def dashboard_get():
 # author: 이승원
 """
 
+@app.get("/api/healthcheck")
+def health_check():
+    return jsonify({"status": "success", "message": "API is healthy"}), 200
+
 # 포트폴리오 자산입력
 @app.post("/api/portfolio")
 def portfolio_add():
