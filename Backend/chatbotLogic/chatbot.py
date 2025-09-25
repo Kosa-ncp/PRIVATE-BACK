@@ -1,5 +1,6 @@
 import requests, os
 from dotenv import load_dotenv
+from flask import jsonify
 
 load_dotenv()
 
@@ -45,6 +46,19 @@ def get_chat_response(user_id, message):
 
     response = requests.post(url, headers=headers, json=data)
     print(f"[chatbot] 응답 status_code: {response.status_code}")
-    print(f"[chatbot] 응답 body: {response.text}")
+    try:
+        result_json = response.json()
+        print(f"[chatbot] 응답 body: {result_json}")
+        final_answer = result_json.get('result', {}).get('finalAnswer', None)
+    except Exception as e:
+        print(f"[chatbot] 응답 JSON 파싱 오류: {e}")
+        final_answer = None
 
-    return response.json()
+    user_portfolio_add = {
+        "status": "success" if final_answer else "error",
+        "message": "포트폴리오 추가 완료" if final_answer else "챗봇 응답 오류",
+        "data": final_answer
+    }
+
+    print(f"[chatbot] 반환 결과: {user_portfolio_add}")
+    return user_portfolio_add

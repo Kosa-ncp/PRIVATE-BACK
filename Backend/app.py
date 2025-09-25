@@ -78,7 +78,7 @@ def portfolio_del():
 """
 # 챗봇 엔드포인트 (start)  /api/chatbot
 """
-@app.get("/api/chatbot")
+@app.post("/api/chatbot")
 def chatbot():
     data = request.get_json()
     user_id = get_user_id()  # 기존 get_user_id 함수 사용
@@ -157,9 +157,6 @@ def get_user_id():
 """
 # API 연결 확인용 코드 (start)
 """
-@app.route("/")
-def hello_world():
-    return test()
     
 # POST 요청 예시, 포트폴리오 조회
 @app.route("/api/portfolio_test", methods=["POST"])
