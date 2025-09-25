@@ -396,7 +396,7 @@ def patch_user_portfolio(data):
     
     if tot_quantity == 0 or tot_principal == 0:
         # 삭제
-        del_user_portfolio(data)
+        return del_user_portfolio(data)
 
     if tot_principal < 0:
         print(f"[ERROR] Portfolio(assetId={assetId}) 원금 부족 - 400")
@@ -410,7 +410,7 @@ def patch_user_portfolio(data):
     # 예적금 또는 현금 가격이 0이 되었을 때
     if tot_principal == 0 and (assetType == "예적금" or assetType == "현금"):
         # 삭제
-        del_user_portfolio(data)
+        return del_user_portfolio(data)
 
     # 평단가 재계산
     averagePrice = math.floor(tot_principal / tot_quantity) if tot_quantity > 0 else 0
