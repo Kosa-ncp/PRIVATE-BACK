@@ -30,7 +30,7 @@ SELECT_ASSET_INFO_SINGLE_SQL = """
      LIMIT 1
 """
 
-# 이름이 포함된 여러건 반환
+# 이름이 포함된 자산 반환
 SELECT_ASSET_INFO_LIST_SQL = """
     SELECT
             ticker      AS ticker,
@@ -42,7 +42,6 @@ SELECT_ASSET_INFO_LIST_SQL = """
       FROM ASSET_INFO_TB
      WHERE asset_name LIKE %s
      ORDER BY ticker
-     LIMIT 1
 """
 
 def get_asset_info_single(asset_name: str):
@@ -162,163 +161,193 @@ def get_current_local_stock_price_with_name(asset_name: str):
     """
     자산 이름으로 국내 주식 현재가 조회 (asset_info.py 활용)
     """
+    try:
+        asset_info_response = get_asset_info_single(asset_name)
+        if asset_info_response[1] != 200:
+            print(f"{asset_name} 정보 조회 실패: {asset_info_response[0].get_json()}")
+            return 0
 
-    asset_info_response = get_asset_info_single(asset_name)
-    if asset_info_response[1] != 200:
-        print(f"{asset_name} 정보 조회 실패: {asset_info_response[0].get_json()}")
+        asset_data = asset_info_response[0].get_json().get("data", None)
+        if not asset_data or "ticker" not in asset_data:
+            print(f"{asset_name} 자산 정보에 ticker가 없습니다.")
+            return 0
+
+        ticker = asset_data["ticker"]
+        sector = asset_data["sector"]
+
+        # sector 값이 없는 경우 크롤링 해서 추가해주기
+        if not sector:
+            search_sector = get_sector(ticker)
+            if search_sector:
+                try:
+                    db = asset_management.connect_mysql()
+                    cursor = db.cursor(pymysql.cursors.DictCursor)
+                    update_at = asset_management.now_iso()
+                    update_sql = """
+                        UPDATE ASSET_INFO_TB
+                        SET sector = %s,
+                            update_at = %s
+                        WHERE ticker = %s
+                    """
+                    cursor.execute(update_sql, (search_sector, update_at, ticker))
+                    db.commit()
+                    db.close()
+                    print(f"{asset_name} sector 정보 DB에 업데이트 완료: {search_sector}")
+                    sector = search_sector
+                except Exception as e:
+                    print(f"{asset_name} sector DB 업데이트 실패: {e}")
+        
+        print("ticker:", ticker, " sector:", sector)
+
+        current_price_response = get_asset_info_current(ticker)
+        if current_price_response[1] != 200:
+            print(f"{asset_name} 현재가 조회 실패: {current_price_response[0].get_json()}")
+            return 0
+
+        current_price_data = current_price_response[0].get_json().get("data", None)
+        if not current_price_data or "currentPrice" not in current_price_data:
+            print(f"{asset_name} 현재가 정보가 없습니다.")
+            return 0
+
+        return current_price_data["currentPrice"]
+    except Exception as e:
+        print(f"[ERROR] get_current_local_stock_price_with_name 예외 발생: {e}")
         return 0
-
-    asset_data = asset_info_response[0].get_json().get("data", None)
-    if not asset_data or "ticker" not in asset_data:
-        print(f"{asset_name} 자산 정보에 ticker가 없습니다.")
-        return 0
-
-    ticker = asset_data["ticker"]
-    sector = asset_data["sector"]
-
-    # sector 값이 없는 경우 크롤링 해서 추가해주기
-    if not sector:
-        search_sector = get_sector(ticker)
-        if search_sector:
-            try:
-                db = asset_management.connect_mysql()
-                cursor = db.cursor(pymysql.cursors.DictCursor)
-                update_at = asset_management.now_iso()
-                update_sql = """
-                    UPDATE ASSET_INFO_TB
-                    SET sector = %s,
-                        update_at = %s
-                    WHERE ticker = %s
-                """
-                cursor.execute(update_sql, (search_sector, update_at, ticker))
-                db.commit()
-                db.close()
-                print(f"{asset_name} sector 정보 DB에 업데이트 완료: {search_sector}")
-                sector = search_sector
-            except Exception as e:
-                print(f"{asset_name} sector DB 업데이트 실패: {e}")
-    
-    print("ticker:", ticker, " sector:", sector)
-
-    current_price_response = get_asset_info_current(ticker)
-    if current_price_response[1] != 200:
-        print(f"{asset_name} 현재가 조회 실패: {current_price_response[0].get_json()}")
-        return 0
-
-    current_price_data = current_price_response[0].get_json().get("data", None)
-    if not current_price_data or "currentPrice" not in current_price_data:
-        print(f"{asset_name} 현재가 정보가 없습니다.")
-        return 0
-
-    return current_price_data["currentPrice"]
 
 
 # 가상자산 실시간 받아오기
 def get_current_virtual_price_with_name(asset_name: str):
-    asset_info_response = get_asset_info_single(asset_name)
-    if asset_info_response[1] != 200:
-        print(f"{asset_name} 정보 조회 실패: {asset_info_response[0].get_json()}")
+    try:
+        asset_info_response = get_asset_info_single(asset_name)
+        if asset_info_response[1] != 200:
+            print(f"{asset_name} 정보 조회 실패: {asset_info_response[0].get_json()}")
+            return 0
+
+        asset_data = asset_info_response[0].get_json().get("data", None)
+        if not asset_data or "ticker" not in asset_data:
+            print(f"{asset_name} 자산 정보에 ticker가 없습니다.")
+            return 0
+
+        ticker = asset_data["ticker"]
+        sector = asset_data["sector"]
+
+        # sector 값이 없는 경우 크롤링 해서 추가해주기
+        if not sector:
+            search_sector = get_sector(ticker)
+            if search_sector:
+                try:
+                    db = asset_management.connect_mysql()
+                    cursor = db.cursor(pymysql.cursors.DictCursor)
+                    update_at = asset_management.now_iso()
+                    update_sql = """
+                        UPDATE ASSET_INFO_TB
+                        SET sector = %s,
+                            update_at = %s
+                        WHERE ticker = %s
+                    """
+                    cursor.execute(update_sql, (search_sector, update_at, ticker))
+                    db.commit()
+                    db.close()
+                    print(f"{asset_name} sector 정보 DB에 업데이트 완료: {search_sector}")
+                    sector = search_sector
+                except Exception as e:
+                    print(f"{asset_name} sector DB 업데이트 실패: {e}")
+        
+        cg = Coingecko(
+            environment  = "demo", 
+            demo_api_key = GECKO_API_KEY
+        )
+
+        # 1) 이름으로 (쉼표로 여러 개)
+        price_by_names = cg.simple.price.get(
+            names         = asset_name,           # 코인 '이름'
+            vs_currencies = "usd,krw"
+        )
+        print("by names:", price_by_names)
+
+        item = price_by_names.get(asset_name)
+        krw = item["krw"] if isinstance(item, dict) else getattr(item, "krw", None)
+
+        if krw is None:
+            print("KRW price not found for ", asset_name)
+            return 0
+        return int(krw)
+    except Exception as e:
+        print(f"[ERROR] get_current_virtual_price_with_name 예외 발생: {e}")
         return 0
-
-    asset_data = asset_info_response[0].get_json().get("data", None)
-    if not asset_data or "ticker" not in asset_data:
-        print(f"{asset_name} 자산 정보에 ticker가 없습니다.")
-        return 0
-
-    ticker = asset_data["ticker"]
-    sector = asset_data["sector"]
-
-    # sector 값이 없는 경우 크롤링 해서 추가해주기
-    if not sector:
-        search_sector = get_sector(ticker)
-        if search_sector:
-            try:
-                db = asset_management.connect_mysql()
-                cursor = db.cursor(pymysql.cursors.DictCursor)
-                update_at = asset_management.now_iso()
-                update_sql = """
-                    UPDATE ASSET_INFO_TB
-                    SET sector = %s,
-                        update_at = %s
-                    WHERE ticker = %s
-                """
-                cursor.execute(update_sql, (search_sector, update_at, ticker))
-                db.commit()
-                db.close()
-                print(f"{asset_name} sector 정보 DB에 업데이트 완료: {search_sector}")
-                sector = search_sector
-            except Exception as e:
-                print(f"{asset_name} sector DB 업데이트 실패: {e}")
-    
-    cg = Coingecko(
-        environment  = "demo", 
-        demo_api_key = GECKO_API_KEY
-    )
-
-    # 1) 이름으로 (쉼표로 여러 개)
-    price_by_names = cg.simple.price.get(
-        names         = asset_name,           # 코인 '이름'
-        vs_currencies = "usd,krw"
-    )
-    print("by names:", price_by_names)
-
-    item = price_by_names.get(asset_name)
-    krw = item["krw"] if isinstance(item, dict) else getattr(item, "krw", None)
-
-    if krw is None:
-        print("KRW price not found for ", asset_name)
-        return 0
-    return (int(krw))
 
 
 # 해외주식 실시간 받아오기
 def get_current_global_stock_price_with_name(asset_name: str):
-    asset_info_response = get_asset_info_single(asset_name)
-    if asset_info_response[1] != 200:
-        print(f"{asset_name} 정보 조회 실패: {asset_info_response[0].get_json()}")
+    try:
+        asset_info_response = get_asset_info_single(asset_name)
+        if asset_info_response[1] != 200:
+            print(f"{asset_name} 정보 조회 실패: {asset_info_response[0].get_json()}")
+            return 0
+
+        asset_data = asset_info_response[0].get_json().get("data", None)
+        if not asset_data or "ticker" not in asset_data:
+            print(f"{asset_name} 자산 정보에 ticker가 없습니다.")
+            return 0
+
+        ticker = asset_data["ticker"]
+        sector = asset_data["sector"]
+
+        # sector 값이 없는 경우 크롤링 해서 추가해주기
+        if not sector:
+            search_sector = get_sector(ticker)
+            if search_sector:
+                try:
+                    db = asset_management.connect_mysql()
+                    cursor = db.cursor(pymysql.cursors.DictCursor)
+                    update_at = asset_management.now_iso()
+                    update_sql = """
+                        UPDATE ASSET_INFO_TB
+                        SET sector = %s,
+                            update_at = %s
+                        WHERE ticker = %s
+                    """
+                    cursor.execute(update_sql, (search_sector, update_at, ticker))
+                    db.commit()
+                    db.close()
+                    print(f"{asset_name} sector 정보 DB에 업데이트 완료: {search_sector}")
+                    sector = search_sector
+                except Exception as e:
+                    print(f"{asset_name} sector DB 업데이트 실패: {e}")
+        
+        print("ticker:", ticker, " sector:", sector)
+        try:
+            stock = yf.Ticker(ticker)
+            data = stock.info
+            current = data.get("currentPrice")
+            if current is None:
+                print(f"[ERROR] {ticker}의 currentPrice를 찾을 수 없습니다.")
+                return 0
+        except Exception as e:
+            print(f"[ERROR] yfinance에서 가격 조회 실패: {e}")
+            return 0
+        
+        try:
+            exchange_rate_df = fdr.DataReader('USD/KRW')
+            if exchange_rate_df.empty:
+                print("[ERROR] 환율 데이터가 비어 있습니다.")
+                return 0
+            exchange_rate = exchange_rate_df.iloc[-1][0]
+        except Exception as e:
+            print(f"[ERROR] 환율 정보 조회 실패: {e}")
+            return 0
+
+        try:
+            result_price = float(current) * float(exchange_rate)
+            result_price = int(result_price)
+        except Exception as e:
+            print(f"[ERROR] 가격 계산 실패: {e}")
+            return 0
+
+        return result_price
+    except Exception as e:
+        print(f"[ERROR] get_current_global_stock_price_with_name 예외 발생: {e}")
         return 0
-
-    asset_data = asset_info_response[0].get_json().get("data", None)
-    if not asset_data or "ticker" not in asset_data:
-        print(f"{asset_name} 자산 정보에 ticker가 없습니다.")
-        return 0
-
-    ticker = asset_data["ticker"]
-    sector = asset_data["sector"]
-
-    # sector 값이 없는 경우 크롤링 해서 추가해주기
-    if not sector:
-        search_sector = get_sector(ticker)
-        if search_sector:
-            try:
-                db = asset_management.connect_mysql()
-                cursor = db.cursor(pymysql.cursors.DictCursor)
-                update_at = asset_management.now_iso()
-                update_sql = """
-                    UPDATE ASSET_INFO_TB
-                    SET sector = %s,
-                        update_at = %s
-                    WHERE ticker = %s
-                """
-                cursor.execute(update_sql, (search_sector, update_at, ticker))
-                db.commit()
-                db.close()
-                print(f"{asset_name} sector 정보 DB에 업데이트 완료: {search_sector}")
-                sector = search_sector
-            except Exception as e:
-                print(f"{asset_name} sector DB 업데이트 실패: {e}")
-    
-    print("ticker:", ticker, " sector:", sector)
-    stock = yf.Ticker(ticker)
-    data = stock.info
-
-    current = data["currentPrice"]          # KeyError가 싫으면 data.get("currentPrice")
-    exchange_rate = fdr.DataReader('USD/KRW').iloc[-1][0] # 환율 정보
-
-    result_price = float(current) * float(exchange_rate)
-    result_price = int(result_price)
-
-    return result_price
 
 #####################
 # 섹터 (start)

@@ -47,6 +47,21 @@ SELECT_ASSET_SQL = """
     LIMIT 1
 """
 
+SELECT_LIST_SQL = """
+    SELECT
+            asset_id      AS assetId,
+            user_id       AS userId,
+            asset_name    AS assetName,
+            asset_type    AS assetType,
+            quantity      AS quantity,
+            principal     AS principal,
+            average_price AS averagePrice,
+            register_date AS openDate,
+            expire_date   AS maturityDate
+      FROM USER_ASSET_LIST_TB 
+     WHERE user_id = %s
+"""
+
 # 추가
 def add_user_portfolio(data):
     try:
@@ -88,6 +103,7 @@ def add_user_portfolio(data):
         if assetType in ["국내주식", "해외주식", "가상자산"]:
             asset_response = asset_info.get_asset_info_single(assetName)
             if not asset_response or not hasattr(asset_response[0], "get_json"):
+                db.close()
                 return jsonify({
                     "status": "error",
                     "message": f"Asset(name={assetName})'s ticker no response",
@@ -96,6 +112,7 @@ def add_user_portfolio(data):
 
             asset_json = asset_response[0].get_json()
             if not asset_json or "data" not in asset_json or asset_json["data"] is None:
+                db.close()
                 return jsonify({
                     "status": "error",
                     "message": f"Asset(name={assetName})'s ticker not found.",
@@ -112,19 +129,53 @@ def add_user_portfolio(data):
                     candidate_json = candidate[0].get_json()
                     asset_name_list = [item["assetName"] for item in candidate_json.get("data", []) if "assetName" in item]
                     
+                    db.close()
                     return jsonify({
                         "status": "error",
                         "message": f"Asset(name={assetName}) not found.",
                         "data": asset_name_list
                     }), 400
 
+                db.close()
                 return jsonify({
                     "status": "error",
                     "message": f"Asset(name={assetName}) not found."
                 }), 400
+            
+            # 자산 종류 다른 경우
+            if assetType != asset_json["data"].get("assetType", None):
+                db.close()
+                return jsonify({
+                    "status": "error",
+                    "message": f"Asset(name={assetName}) wrong asset type."
+                }), 400
+            
+            # 자산이 이미 있는 경우
+            cursor.execute(SELECT_LIST_SQL, (userId,))
+            rows = cursor.fetchall()
+            print(f"[DEBUG] 사용자({userId})의 기존 자산 rows: {rows}")
+
+            # 기존 자산 목록을 seen에 저장
+            seen = set()
+            for row in rows:
+                key = (row["assetType"], row["assetName"])
+                seen.add(key)
+                print(f"[DEBUG] seen set에 추가: {seen}")
+
+            # 신규로 추가하려는 자산이 이미 있는지 체크
+            new_key = (assetType, assetName)
+            print(f"[DEBUG] 신규 추가 자산 key: {new_key}")
+            if new_key in seen:
+                print(f"[ERROR] 추가하려는 자산이 이미 존재함: assetType={assetType}, assetName={assetName}")
+                db.close()
+                return jsonify({
+                    "status": "error",
+                    "message": f"추가하려는 자산이 이미 존재합니다: {assetType} - {assetName}",
+                    "data": None
+                }), 400
 
         # 자산 추가
-        sql = """
+        insert_sql = """
             INSERT INTO USER_ASSET_LIST_TB
             (
                 asset_id,
@@ -159,9 +210,9 @@ def add_user_portfolio(data):
             updateAt
         )
         
-        print("실행 SQL: ", sql, values)
+        print("실행 SQL: ", insert_sql, values)
 
-        cursor.execute(sql, values)
+        cursor.execute(insert_sql, values)
 
         db.commit()
         db.close()
@@ -207,23 +258,9 @@ def get_user_portfolio_list(user_id):
     cursor = db.cursor(pymysql.cursors.DictCursor)
 
     # 자산
-    sql = """
-        SELECT
-            asset_id      AS assetId,
-            user_id       AS userId,
-            asset_name    AS assetName,
-            asset_type    AS assetType,
-            quantity      AS quantity,
-            principal     AS principal,
-            average_price AS averagePrice,
-            register_date AS openDate,
-            expire_date   AS maturityDate
-          FROM USER_ASSET_LIST_TB 
-         WHERE user_id = %s
-    """
-    print("실행 SQL: ", sql, user_id)
+    print("실행 SQL: ", SELECT_LIST_SQL, user_id)
 
-    cursor.execute(sql, (user_id,))
+    cursor.execute(SELECT_LIST_SQL, (user_id,))
     rows = cursor.fetchall()
 
     # 자산 매칭
