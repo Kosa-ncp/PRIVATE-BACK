@@ -78,7 +78,7 @@ def portfolio_del():
 """
 # 챗봇 엔드포인트 (start)  /api/chatbot
 """
-@app.post("/api/chatbot")
+@app.get("/api/chatbot")
 def chatbot():
     data = request.get_json()
     user_id = get_user_id()  # 기존 get_user_id 함수 사용
@@ -91,7 +91,7 @@ def chatbot():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 # 포트폴리오 구성 조회 엔드포인트
-@app.post("/api/portfolio/composition")
+@app.get("/api/portfolio/composition")
 def portfolio_composition():
     user_id = get_user_id()  # 기존 get_user_id 함수 사용
     try:
@@ -101,7 +101,7 @@ def portfolio_composition():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 # 포트폴리오 비중 계산 엔드포인트
-@app.post("/api/portfolio/weights")
+@app.get("/api/portfolio/weights")
 def portfolio_weights():
     user_id = get_user_id()  # 기존 get_user_id 함수 사용
     try:
@@ -111,7 +111,7 @@ def portfolio_weights():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 # 포트폴리오 진단 엔드포인트
-@app.post("/api/portfolio/diagnosis")
+@app.get("/api/portfolio/diagnosis")
 def portfolio_diagnosis():
     user_id = get_user_id()  # 기존 get_user_id 함수 사용
     try:
@@ -121,7 +121,7 @@ def portfolio_diagnosis():
         return jsonify({"status": "error", "message": str(e)}), 500
     
 # 포트폴리오 피드백 엔드포인트
-@app.post("/api/portfolio/feedback")
+@app.get("/api/portfolio/feedback")
 def portfolio_feedback():
     user_id = get_user_id()  # 기존 get_user_id 함수 사용
     data = request.get_json()
@@ -134,7 +134,7 @@ def portfolio_feedback():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 # 포트폴리오 인사이트(리포트) 엔드포인트
-@app.post("/api/portfolio/daily-report")
+@app.get("/api/portfolio/daily-report")
 def portfolio_daily_report():
     user_id = get_user_id()  # 기존 get_user_id 함수 사용
     try:
