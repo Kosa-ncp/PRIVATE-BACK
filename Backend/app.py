@@ -1,9 +1,16 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 
-from chatbot import test
 from asset_management import *
 from update_asset_info import *
+
+#챗봇 함수 가져오기 
+from chatbotLogic.composition import composition
+from chatbotLogic.weights import weights
+from chatbotLogic.diagnosis import diagnosis
+from chatbotLogic.feedback import feedback
+from chatbotLogic.dailyreport import daily_report
+from chatbotLogic.chatbot import get_chat_response
 
 app = Flask(__name__)
 
@@ -65,7 +72,79 @@ def portfolio_del():
     return del_user_portfolio(data)
 
 """
-# 포트폴리오 CRUD (end)
+# 포트폴리오 CRUD (end) 
+"""
+
+"""
+# 챗봇 엔드포인트 (start)  /api/chatbot
+"""
+@app.post("/api/chatbot")
+def chatbot():
+    data = request.get_json()
+    user_id = get_user_id()  # 기존 get_user_id 함수 사용
+    if not data or "message" not in data:
+        return jsonify({"status": "error", "message": "Missing message in request body"}), 400
+    try:
+        response = get_chat_response(user_id, data["message"])  # chatbot.py의 test 함수 호출
+        return jsonify(response)
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+# 포트폴리오 구성 조회 엔드포인트
+@app.post("/api/portfolio/composition")
+def portfolio_composition():
+    user_id = get_user_id()  # 기존 get_user_id 함수 사용
+    try:
+        result = composition(user_id)  # composition.py의 composition 함수 호출
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+# 포트폴리오 비중 계산 엔드포인트
+@app.post("/api/portfolio/weights")
+def portfolio_weights():
+    user_id = get_user_id()  # 기존 get_user_id 함수 사용
+    try:
+        result = weights(user_id)  # weights.py의 weights 함수 호출
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+# 포트폴리오 진단 엔드포인트
+@app.post("/api/portfolio/diagnosis")
+def portfolio_diagnosis():
+    user_id = get_user_id()  # 기존 get_user_id 함수 사용
+    try:
+        result = diagnosis(user_id)  # diagnosis.py의 diagnosis 함수 호출
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+    
+# 포트폴리오 피드백 엔드포인트
+@app.post("/api/portfolio/feedback")
+def portfolio_feedback():
+    user_id = get_user_id()  # 기존 get_user_id 함수 사용
+    data = request.get_json()
+    if not data or "diagnosisData" not in data:
+        return jsonify({"status": "error", "message": "Missing diagnosisData in request body"}), 400
+    try:
+        result = feedback(user_id, data["diagnosisData"])  # feedback.py의 feedback 함수 호출
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+# 포트폴리오 인사이트(리포트) 엔드포인트
+@app.post("/api/portfolio/daily-report")
+def portfolio_daily_report():
+    user_id = get_user_id()  # 기존 get_user_id 함수 사용
+    try:
+        result = daily_report(user_id)  # dailyreport.py의 daily_report 함수 호출
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+"""
+# 챗봇 엔드포인트 (end)
 """
 
 # user_id 추출, header에서 Authorization 값 추출
