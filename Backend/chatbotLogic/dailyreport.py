@@ -6,7 +6,14 @@ from datetime import datetime, timedelta
 import requests
 from bs4 import BeautifulSoup
 import re
-import sqlite3
+import pymysql
+import asset_management
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+NAVER_DEV_API_KEY = os.getenv("NAVER_DEV_API_KEY")
+NAVER_DEV_SECRET_KEY = os.getenv("NAVER_DEV_SECRET_KEY")
 
 def calculate_technical_analysis(ticker, asset_type):
     if asset_type not in ["국내주식", "해외주식", "가상자산"]:
@@ -19,14 +26,14 @@ def calculate_technical_analysis(ticker, asset_type):
         ema26 = prices.ewm(span=26, adjust=False).mean()
         macd = ema12 - ema26
         signal_line = macd.ewm(span=9, adjust=False).mean()
-        macd_signal = "Buy" if macd.iloc[-1] > signal_line.iloc[-1] else "Sell" if macd.iloc[-1] < signal_line.iloc[-1] else "Neutral"
+        macd_signal = "매수 시그널" if macd.iloc[-1] > signal_line.iloc[-1] else "매도 시그널" if macd.iloc[-1] < signal_line.iloc[-1] else "중립"
 
         delta = prices.diff()
         gain = delta.where(delta > 0, 0).rolling(window=14).mean()
         loss = -delta.where(delta < 0, 0).rolling(window=14).mean()
         rs = gain / loss
         rsi = 100 - (100 / (1 + rs)).iloc[-1]
-        rsi_signal = "Overbought" if rsi > 70 else "Oversold" if rsi < 30 else "Neutral"
+        rsi_signal = "과매수" if rsi > 70 else "과매도" if rsi < 30 else "중립"
 
         return {"assetId": ticker, "macd_signal": macd_signal, "rsi": rsi, "rsi_signal": rsi_signal}
     except Exception as e:
@@ -38,8 +45,8 @@ def get_news_summary(ticker, asset_type, num_news=3):
         return []
     
     headers = {
-        "X-Naver-Client-Id": "YOUR_CLIENT_ID_HERE",  # 실제 Naver Client ID 입력
-        "X-Naver-Client-Secret": "YOUR_CLIENT_SECRET_HERE"  # 실제 Naver Client Secret 입력
+        "X-Naver-Client-Id": NAVER_DEV_API_KEY,
+        "X-Naver-Client-Secret": NAVER_DEV_SECRET_KEY
     }
     url = "https://openapi.naver.com/v1/search/news.json"
     params = {"query": ticker, "sort": "date", "display": num_news}
@@ -72,43 +79,46 @@ def get_news_summary(ticker, asset_type, num_news=3):
         return [{"title": "뉴스 조회 실패", "summary": "API 호출 중 오류 발생"}]
 
 def get_industry_trends(sector, num_trends=2):
-    sectors = {
-        "IT": ["AAPL", "MSFT"],
-        "Financial": ["JPM", "GS"],
-        "Fixed Income": ["SAVING1"],
-        "Crypto": ["BTC", "ETH"],
-        "Currency": ["USD"]
-    }
+    # DB에서 섹터별 티커 정보 조회
+    db = asset_management.connect_mysql()
+    cursor = db.cursor()
+    cursor.execute("SELECT sector, ticker FROM ASSET_INFO_TB")
+    rows = cursor.fetchall()
+    db.close()
+    sector_tickers = {}
+    for sector_name, ticker in rows:
+        sector_tickers.setdefault(sector_name, []).append(ticker)
     start_date = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
     trends = {}
-    for s, tickers in sectors.items():
+    for s, tickers in sector_tickers.items():
         returns = []
         for ticker in tickers:
-            if s == "Fixed Income":
+            if s in ["예적금", "현금"]:
                 returns.append(0.0)
             else:
                 try:
-                    prices = fdr.DataReader(ticker + ("/KRW" if s in ["Crypto", "Currency"] else ""), start_date)["Close"]
+                    prices = fdr.DataReader(ticker + ("/KRW" if s in ["Crypto", "Currency", "가상자산"] else ""), start_date)["Close"]
                     returns.append(prices.pct_change().mean())
                 except Exception:
                     returns.append(0.0)
         trends[s] = np.mean(returns) if returns else 0.0
-    
     top_sectors = sorted(trends.items(), key=lambda x: x[1], reverse=True)[:num_trends]
     related_trends = [s for s, _ in top_sectors if s == sector] + [s for s, _ in top_sectors if s != sector][:1]
     return {s: f"수익률 {trends[s]*100:.1f}%" for s in related_trends}
 
 def daily_report(user_id):
-    # DB 조회
-    conn = sqlite3.connect("portfolio.db")
-    portfolio = pd.read_sql_query(
-        "SELECT ticker, quantity, purchase_price FROM ASSET_INFO_TB WHERE user_id = ?",
-        conn, params=(user_id,)
-    )
-    stock_info = pd.read_sql_query(
-        "SELECT ticker, sector, asset_type FROM stock_info", conn
-    )
-    conn.close()
+    # DB 조회 (MySQL)
+    db = asset_management.connect_mysql()
+    cursor = db.cursor(pymysql.cursors.DictCursor)
+    cursor.execute("SELECT asset_id, ticker, quantity, purchase_price FROM USER_ASSET_LIST_TB WHERE user_id = %s", (user_id,))
+    portfolio_rows = cursor.fetchall()
+    cursor.execute("SELECT ticker, sector, asset_type FROM ASSET_INFO_TB")
+    stock_info_rows = cursor.fetchall()
+    cursor.close()
+    db.close()
+
+    portfolio = pd.DataFrame(portfolio_rows, columns=["asset_id", "ticker", "quantity", "purchase_price"])
+    stock_info = pd.DataFrame(stock_info_rows, columns=["ticker", "sector", "asset_type"])
 
     if portfolio.empty:
         return {"status": "error", "message": "보유 종목 없음"}
