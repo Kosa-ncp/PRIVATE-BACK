@@ -1,10 +1,17 @@
 from flask import jsonify
 from urllib import request as urllib_request
 from bs4 import BeautifulSoup
-import re, pymysql
+from coingecko_sdk import Coingecko, APIConnectionError, APIStatusError, RateLimitError
+from dotenv import load_dotenv
+import re, pymysql, os
 
 import asset_management
 
+
+load_dotenv()
+
+# 환경변수
+GECKO_API_KEY = os.getenv("GECKO_API_KEY")
 
 # 이름으로 여러건 있는 경우 ticker 짧은 순서로 정렬해 하나만 반환
 SELECT_ASSET_INFO_SINGLE_SQL = """
@@ -141,7 +148,7 @@ def extract_current_price(items):
 
 
 
-def get_current_price_with_name(asset_name: str):
+def get_current_stock_price_with_name(asset_name: str):
     """
     자산 이름으로 현재가 조회 (asset_info.py 활용)
     """
@@ -194,10 +201,31 @@ def get_current_price_with_name(asset_name: str):
     return current_price_data["currentPrice"]
 
 
+# 가상자산 실시간 받아오기
+def get_current_virtual_price_with_name(asset_name: str):
+    cg = Coingecko(
+        environment  = "demo", 
+        demo_api_key = GECKO_API_KEY
+    )
+
+    # 1) 이름으로 (쉼표로 여러 개)
+    price_by_names = cg.simple.price.get(
+        names         = asset_name,           # 코인 '이름'
+        vs_currencies = "usd,krw"
+    )
+    print("by names:", price_by_names)
+
+    item = price_by_names.get(asset_name)
+    krw = item["krw"] if isinstance(item, dict) else getattr(item, "krw", None)
+
+    if krw is None:
+        print("KRW price not found for ", asset_name)
+        return 0
+    return (int(krw))
 
 
 #####################
-# 섹터
+# 섹터 (start)
 #####################
 
 def _try_yfinance_sector(symbol: str):
@@ -307,3 +335,9 @@ def get_sector(ticker_or_code: str):
     # 3) 그 밖의 형식: 일단 yfinance 한번 시도
     print("[sector] 분기: 기타 형식 → yfinance 단일 시도")
     return _try_yfinance_sector(s_upper)
+
+#####################
+# 섹터 (end)
+#####################
+
+

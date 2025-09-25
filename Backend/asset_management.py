@@ -85,42 +85,43 @@ def add_user_portfolio(data):
         cursor = db.cursor(pymysql.cursors.DictCursor)
 
         # asset_name 존재 확인
-        asset_response = asset_info.get_asset_info_single(assetName)
-        if not asset_response or not hasattr(asset_response[0], "get_json"):
-            return jsonify({
-                "status": "error",
-                "message": f"Asset(name={assetName})'s ticker no response",
-                "data": None
-            }), 400
-
-        asset_json = asset_response[0].get_json()
-        if not asset_json or "data" not in asset_json or asset_json["data"] is None:
-            return jsonify({
-                "status": "error",
-                "message": f"Asset(name={assetName})'s ticker not found.",
-                "data": None
-            }), 400
-
-        ticker = asset_json["data"].get("ticker", None)
-        print("ticker:", ticker)
-
-        if not ticker:
-            candidate = asset_info.find_asset_info_list(assetName)
-
-            if candidate:
-                candidate_json = candidate[0].get_json()
-                asset_name_list = [item["assetName"] for item in candidate_json.get("data", []) if "assetName" in item]
-                
+        if assetType in ["국내주식", "해외주식", "가상자산"]:
+            asset_response = asset_info.get_asset_info_single(assetName)
+            if not asset_response or not hasattr(asset_response[0], "get_json"):
                 return jsonify({
                     "status": "error",
-                    "message": f"Asset(name={assetName}) not found.",
-                    "data": asset_name_list
+                    "message": f"Asset(name={assetName})'s ticker no response",
+                    "data": None
                 }), 400
 
-            return jsonify({
-                "status": "error",
-                "message": f"Asset(name={assetName}) not found."
-            }), 400
+            asset_json = asset_response[0].get_json()
+            if not asset_json or "data" not in asset_json or asset_json["data"] is None:
+                return jsonify({
+                    "status": "error",
+                    "message": f"Asset(name={assetName})'s ticker not found.",
+                    "data": None
+                }), 400
+
+            ticker = asset_json["data"].get("ticker", None)
+            print("ticker:", ticker)
+
+            if not ticker:
+                candidate = asset_info.find_asset_info_list(assetName)
+
+                if candidate:
+                    candidate_json = candidate[0].get_json()
+                    asset_name_list = [item["assetName"] for item in candidate_json.get("data", []) if "assetName" in item]
+                    
+                    return jsonify({
+                        "status": "error",
+                        "message": f"Asset(name={assetName}) not found.",
+                        "data": asset_name_list
+                    }), 400
+
+                return jsonify({
+                    "status": "error",
+                    "message": f"Asset(name={assetName}) not found."
+                }), 400
 
         # 자산 추가
         sql = """
@@ -241,7 +242,12 @@ def get_user_portfolio_list(user_id):
             averagePrice = 1
         
         
-        currentPrice = asset_info.get_current_price_with_name(asset_name)    # 현재가
+        currentPrice = 0
+        if asset_type in ["국내주식", "해외주식"]:
+            currentPrice = asset_info.get_current_stock_price_with_name(asset_name)
+        elif asset_type in ["가상자산"]:
+            currentPrice = asset_info.get_current_virtual_price_with_name(asset_name)
+
         # 자산 종류가 "예적금" 또는 "현금" 일때 수량 1로 고정
         if asset_type == "예적금" or asset_type == "현금":
             quantity = 1
@@ -298,6 +304,7 @@ def patch_user_portfolio(data):
 
     # 3) 없으면 404 응답
     if not row_check:
+        print(f"[ERROR] Portfolio(assetId={assetId}) not found - 404")
         db.close()
         return jsonify({
             "status": "error",
@@ -307,6 +314,7 @@ def patch_user_portfolio(data):
     
     # 4) user 일치하는지 확인
     if row_check["userId"] != requestUserId:
+        print(f"[ERROR] Portfolio(user={requestUserId}) not authorized - 403")
         db.close()
         return jsonify({
             "status": "error",
@@ -337,17 +345,20 @@ def patch_user_portfolio(data):
         tot_quantity = 1
 
     if tot_quantity < 0:
+        print(f"[ERROR] Portfolio(assetId={assetId}) 수량 부족 - 400")
         db.close()
         return jsonify({
             "status": "error",
             "message": f"Portfolio(assetId={assetId}) 수량이 부족합니다.",
             "data": None
         }), 400
-    elif tot_quantity == 0:
+    
+    if tot_quantity == 0 or tot_principal == 0:
         # 삭제
         del_user_portfolio(data)
 
-    if tot_principal <= 0:
+    if tot_principal < 0:
+        print(f"[ERROR] Portfolio(assetId={assetId}) 원금 부족 - 400")
         db.close()
         return jsonify({
             "status": "error",
@@ -554,7 +565,11 @@ def get_user_dashboard(user_id):
         quantity = row[4]
         averagePrice = math.floor(row[6]) # 평단가
         principal = averagePrice * quantity # 원금
-        currentPrice = asset_info.get_current_price_with_name(asset_name)  # 현재가
+        currentPrice = 0  # 현재가
+        if asset_type in ["국내주식", "해외주식"]:
+            currentPrice = asset_info.get_current_stock_price_with_name(asset_name)
+        elif asset_type in ["가상자산"]:
+            currentPrice = asset_info.get_current_virtual_price_with_name(asset_name)
         valuation = currentPrice * quantity # 평가금액
         profit = valuation - (averagePrice * quantity)
         profitRate = math.floor(profit / (averagePrice * quantity) * 10000) / 100
