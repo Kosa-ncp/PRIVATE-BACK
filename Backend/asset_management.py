@@ -91,7 +91,7 @@ def add_user_portfolio(data):
                 "status": "error",
                 "message": f"Asset(name={assetName})'s ticker no response",
                 "data": None
-            }), 500
+            }), 400
 
         asset_json = asset_response[0].get_json()
         if not asset_json or "data" not in asset_json or asset_json["data"] is None:
@@ -99,7 +99,7 @@ def add_user_portfolio(data):
                 "status": "error",
                 "message": f"Asset(name={assetName})'s ticker not found.",
                 "data": None
-            }), 404
+            }), 400
 
         ticker = asset_json["data"].get("ticker", None)
         print("ticker:", ticker)
@@ -115,12 +115,12 @@ def add_user_portfolio(data):
                     "status": "error",
                     "message": f"Asset(name={assetName}) not found.",
                     "data": asset_name_list
-                }), 404
+                }), 400
 
             return jsonify({
                 "status": "error",
                 "message": f"Asset(name={assetName}) not found."
-            }), 404
+            }), 400
 
         # 자산 추가
         sql = """
@@ -183,7 +183,7 @@ def add_user_portfolio(data):
             }
         }	
         
-        return jsonify(user_portfolio_add)
+        return jsonify(user_portfolio_add), 200
     
     except Exception as e:
         return jsonify({

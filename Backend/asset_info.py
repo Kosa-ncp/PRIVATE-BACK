@@ -237,7 +237,7 @@ def _naver_sector_kr(ticker: str):
     print(f"[sector] 네이버 시도 → code={ticker}, url={url}")
 
     try:
-        r = requests.get(url, headers=headers, timeout=10)
+        r = urllib_request.get(url, headers=headers, timeout=10)
         r.raise_for_status()
     except Exception as e:
         print(f"[sector] 네이버 요청 실패: {type(e).__name__} - {e}")
