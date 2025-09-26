@@ -78,7 +78,7 @@ def diagnosis(user_id):
 
         # 성과 분석 (현금도 예적금과 동일하게 처리)
         portfolio["return"] = portfolio.apply(
-            lambda x: 0 if x["asset_type"] in ["예적금", "현금"] else (x["current_price"] - x["average_price"]) / x["average_price"],
+            lambda x: 0 if x["asset_type"] in ["예적금", "현금"] else (float(x["current_price"]) - float(x["average_price"])) / float(x["average_price"]),
             axis=1
         )
         total_return = (portfolio["weight"].astype(float) * portfolio["return"].astype(float)).sum() * 100
@@ -119,10 +119,10 @@ def diagnosis(user_id):
         portfolio_values = pd.Series(0.0, index=pd.date_range(start_date, "2025-09-22"))
         for _, row in portfolio.iterrows():
             if row["asset_type"] in ["예적금", "현금"]:
-                values = pd.Series(row["quantity"] * row["average_price"], index=pd.date_range(start_date, "2025-09-22"))
+                values = pd.Series(float(row["quantity"]) * float(row["average_price"]), index=pd.date_range(start_date, "2025-09-22"))
             else:
-                values = fdr.DataReader(row["assetId"] + ("/KRW" if row["asset_type"] == "가상자산" else ""),
-                                        start_date)["Close"] * row["quantity"]
+                values = float(fdr.DataReader(row["assetId"] + ("/KRW" if row["asset_type"] == "가상자산" else ""),
+                                        start_date)["Close"]) * float(row["quantity"])
             portfolio_values += values
         rolling_max = portfolio_values.cummax()
         drawdown = (portfolio_values - rolling_max) / rolling_max
