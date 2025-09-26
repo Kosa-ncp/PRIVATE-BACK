@@ -141,7 +141,7 @@ def daily_report(user_id):
         # cursor.execute("SELECT asset_id, quantity, average_price FROM USER_ASSET_LIST_TB WHERE user_id = %s", (user_id,))
         # portfolio_rows = cursor.fetchall()
         # print(f"[dailyreport] portfolio_rows: {portfolio_rows}")
-        # cursor.execute("SELECT ticker, sector, asset_type FROM ASSET_INFO_TB") #asset_name로 수정?
+        # cursor.execute("SELECT ticker, sector, assetType FROM ASSET_INFO_TB") #asset_name로 수정?
         # stock_info_rows = cursor.fetchall()
         # print(f"[dailyreport] stock_info_rows: {stock_info_rows}")
         # cursor.close()
@@ -151,7 +151,7 @@ def daily_report(user_id):
         # portfolio = pd.DataFrame(portfolio_rows, columns=["asset_id", "ticker", "quantity", "average_price"])
         # print(f"[dailyreport] portfolio DataFrame created:\n{portfolio}")
         # portfolio[["quantity", "average_price"]] = portfolio[["quantity", "average_price"]].astype(float)  # decimal.Decimal to float
-        # stock_info = pd.DataFrame(stock_info_rows, columns=["ticker", "sector", "asset_type"])
+        # stock_info = pd.DataFrame(stock_info_rows, columns=["ticker", "sector", "assetType"])
         # print(f"[dailyreport] stock_info DataFrame created:\n{stock_info}")
 
         # if portfolio.empty:
@@ -172,10 +172,10 @@ def daily_report(user_id):
         # 현재 가격 계산
         portfolio["current_price"] = portfolio.apply(
             lambda x: float(fdr.DataReader(
-                x["ticker"] + ("/KRW" if x["asset_type"] in ["가상자산"] else ""),
+                x["ticker"] + ("/KRW" if x["assetType"] in ["가상자산"] else ""),
                 datetime.now().strftime("%Y-%m-%d")
             )["Close"].iloc[-1])
-            if x["asset_type"] in ["국내주식", "해외주식", "가상자산"]
+            if x["assetType"] in ["국내주식", "해외주식", "가상자산"]
             else float(x["average_price"]),
             axis=1
         )
@@ -184,7 +184,7 @@ def daily_report(user_id):
 
         # 수익률 계산
         portfolio["return"] = portfolio.apply(
-            lambda x: 0 if x["asset_type"] in ["예적금", "현금"] else (float(x["current_price"]) - float(x["average_price"])) / float(x["average_price"]),
+            lambda x: 0 if x["assetType"] in ["예적금", "현금"] else (float(x["current_price"]) - float(x["average_price"])) / float(x["average_price"]),
             axis=1
         )
         print(f"[dailyreport] Return calculated:\n{portfolio[['ticker', 'return']]}")
@@ -192,12 +192,12 @@ def daily_report(user_id):
         reports = []
         for _, row in portfolio.iterrows():
             ticker = row["ticker"]
-            asset_type = row["asset_type"]
+            assetType = row["assetType"]
             sector = row["sector"]
-            print(f"[dailyreport] Processing ticker: {ticker}, asset_type: {asset_type}, sector: {sector}")
+            print(f"[dailyreport] Processing ticker: {ticker}, assetType: {assetType}, sector: {sector}")
 
             # 1. 기술적 지표 (Diagnosis)
-            technicals = calculate_technical_analysis(ticker, asset_type)
+            technicals = calculate_technical_analysis(ticker, assetType)
 
             # 2. 성과 및 설명
             weight = float(row["quantity"]) * float(row["current_price"]) / (portfolio["quantity"].astype(float) * portfolio["current_price"]).sum()
@@ -206,7 +206,7 @@ def daily_report(user_id):
             print(f"[dailyreport] Performance for {ticker}: return={item_return:.1f}%, weight={weight*100:.1f}%")
 
             # 3. 뉴스 2~3개 (Feedback)
-            news = get_news_summary(ticker, asset_type, num_news=3)
+            news = get_news_summary(ticker, assetType, num_news=3)
 
             # 4. 산업 동향 1~2개 (Feedback)
             trends = get_industry_trends(sector, num_trends=2)
