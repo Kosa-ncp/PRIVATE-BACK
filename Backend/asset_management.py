@@ -16,8 +16,10 @@
 
 import os, pymysql, math, uuid, decimal
 from dotenv import load_dotenv
-from flask import jsonify
+from flask import jsonify, current_app
 from datetime import datetime
+
+from chatbotLogic.dailyreport import daily_report
 
 import asset_info
 
@@ -579,7 +581,7 @@ def get_user_dashboard(user_id):
                 "rateOfReturn": 0.00,
             },
         ],    
-        "report": '추가중'     # 금일 투자 리포트
+        "report": ""     # 금일 투자 리포트
     }
 
     db = connect_mysql()    
@@ -670,6 +672,25 @@ def get_user_dashboard(user_id):
     db.close()
     print("DB 연결 종료")
 
+    
+    try:
+        with current_app.test_client() as client:
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {user_id}"
+            }
+            payload = {
+                "message": "일일 리포트"
+            }
+            response = client.post("/api/chatbot", json=payload, headers=headers)
+            if response.status_code == 200:
+                chatbot_result = response.get_json()
+                user_dashboard_list["data"]["report"] = chatbot_result["data"]
+            else:
+                user_dashboard_list["data"]["report"] = "데이터가 더 필요합니다"
+    except Exception as e:
+        user_dashboard_list["data"]["report"] = str(e)
+    
     user_dashboard_list["status"] = "success"
 
     return jsonify(user_dashboard_list)
