@@ -9,6 +9,8 @@ import pymysql
 import asset_management
 import os
 from dotenv import load_dotenv
+import chatbotLogic.composition as composition
+
 
 load_dotenv()
 
@@ -133,32 +135,39 @@ def daily_report(user_id):
     print(f"[dailyreport] Starting daily_report for user_id: {user_id}")
     try:
         # DB 조회 (MySQL)
-        db = asset_management.connect_mysql()
-        cursor = db.cursor(pymysql.cursors.DictCursor)
-        print("[dailyreport] DB connection successful")
-        cursor.execute("SELECT asset_id, ticker, quantity, purchase_price FROM USER_ASSET_LIST_TB WHERE user_id = %s", (user_id,))
-        portfolio_rows = cursor.fetchall()
-        print(f"[dailyreport] portfolio_rows: {portfolio_rows}")
-        cursor.execute("SELECT ticker, sector, asset_type FROM ASSET_INFO_TB")
-        stock_info_rows = cursor.fetchall()
-        print(f"[dailyreport] stock_info_rows: {stock_info_rows}")
-        cursor.close()
-        db.close()
-        print("[dailyreport] DB connection closed")
+        # db = asset_management.connect_mysql()
+        # cursor = db.cursor(pymysql.cursors.DictCursor)
+        # print("[dailyreport] DB connection successful")
+        # cursor.execute("SELECT asset_id, quantity, average_price FROM USER_ASSET_LIST_TB WHERE user_id = %s", (user_id,))
+        # portfolio_rows = cursor.fetchall()
+        # print(f"[dailyreport] portfolio_rows: {portfolio_rows}")
+        # cursor.execute("SELECT ticker, sector, asset_type FROM ASSET_INFO_TB") #asset_name로 수정?
+        # stock_info_rows = cursor.fetchall()
+        # print(f"[dailyreport] stock_info_rows: {stock_info_rows}")
+        # cursor.close()
+        # db.close()
+        # print("[dailyreport] DB connection closed")
 
-        portfolio = pd.DataFrame(portfolio_rows, columns=["asset_id", "ticker", "quantity", "purchase_price"])
-        print(f"[dailyreport] portfolio DataFrame created:\n{portfolio}")
-        portfolio[["quantity", "purchase_price"]] = portfolio[["quantity", "purchase_price"]].astype(float)  # decimal.Decimal to float
-        stock_info = pd.DataFrame(stock_info_rows, columns=["ticker", "sector", "asset_type"])
-        print(f"[dailyreport] stock_info DataFrame created:\n{stock_info}")
+        # portfolio = pd.DataFrame(portfolio_rows, columns=["asset_id", "ticker", "quantity", "average_price"])
+        # print(f"[dailyreport] portfolio DataFrame created:\n{portfolio}")
+        # portfolio[["quantity", "average_price"]] = portfolio[["quantity", "average_price"]].astype(float)  # decimal.Decimal to float
+        # stock_info = pd.DataFrame(stock_info_rows, columns=["ticker", "sector", "asset_type"])
+        # print(f"[dailyreport] stock_info DataFrame created:\n{stock_info}")
 
-        if portfolio.empty:
-            print("[dailyreport] Portfolio is empty")
-            return {"status": "error", "message": "보유 종목 없음"}
+        # if portfolio.empty:
+        #     print("[dailyreport] Portfolio is empty")
+        #     return {"status": "error", "message": "보유 종목 없음"}
 
-        # portfolio와 stock_info 병합
-        portfolio = portfolio.merge(stock_info, on="ticker")
-        print(f"[dailyreport] Merged portfolio DataFrame:\n{portfolio}")
+        # # portfolio와 stock_info 병합
+        # portfolio = portfolio.merge(stock_info, on="ticker")
+        # print(f"[dailyreport] Merged portfolio DataFrame:\n{portfolio}")
+
+        # DB 조회
+        portfolio_result = composition.composition(user_id)
+        print(f"[dailyreport] composition 반환 결과: {portfolio_result}")
+
+        portfolio = pd.DataFrame(portfolio_result["data"])
+        print(f"[dailyreport] portfolio DataFrame:\n{portfolio}")
 
         # 현재 가격 계산
         portfolio["current_price"] = portfolio.apply(
@@ -167,7 +176,7 @@ def daily_report(user_id):
                 datetime.now().strftime("%Y-%m-%d")
             )["Close"].iloc[-1])
             if x["asset_type"] in ["국내주식", "해외주식", "가상자산"]
-            else float(x["purchase_price"]),
+            else float(x["average_price"]),
             axis=1
         )
         print(f"[dailyreport] current_price calculated:\n{portfolio[['ticker', 'current_price']]}")
@@ -175,7 +184,7 @@ def daily_report(user_id):
 
         # 수익률 계산
         portfolio["return"] = portfolio.apply(
-            lambda x: 0 if x["asset_type"] in ["예적금", "현금"] else (x["current_price"] - x["purchase_price"]) / x["purchase_price"],
+            lambda x: 0 if x["asset_type"] in ["예적금", "현금"] else (float(x["current_price"]) - float(x["average_price"])) / float(x["average_price"]),
             axis=1
         )
         print(f"[dailyreport] Return calculated:\n{portfolio[['ticker', 'return']]}")
@@ -191,7 +200,7 @@ def daily_report(user_id):
             technicals = calculate_technical_analysis(ticker, asset_type)
 
             # 2. 성과 및 설명
-            weight = row["quantity"] * row["current_price"] / (portfolio["quantity"] * portfolio["current_price"]).sum()
+            weight = float(row["quantity"]) * float(row["current_price"]) / (portfolio["quantity"].astype(float) * portfolio["current_price"]).sum()
             item_return = row["return"] * 100
             explanation = f"수익률: {item_return:.1f}%, 비중: {weight*100:.1f}%. {'매수 추천' if technicals['macd_signal'] == '매수 시그널' else '매도 고려'} (RSI: {technicals['rsi_signal']})."
             print(f"[dailyreport] Performance for {ticker}: return={item_return:.1f}%, weight={weight*100:.1f}%")
