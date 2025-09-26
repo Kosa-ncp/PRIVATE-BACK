@@ -156,7 +156,7 @@ def get_user_id():
     user_id = request.headers.get('Authorization')
     user_id = user_id.split(" ", 1)[1]
 
-    return user_id
+    return user_id.replace(" ", "")
 
 """
 # API 연결 확인용 코드 (start)
