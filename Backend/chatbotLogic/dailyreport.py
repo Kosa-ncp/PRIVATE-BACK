@@ -25,7 +25,7 @@ def calculate_technical_analysis(ticker, asset_type):
         return {"assetId": ticker, "macd_signal": "N/A", "rsi": 0, "rsi_signal": "N/A"}
     try:
         start_date = (datetime.now() - timedelta(days=365)).strftime("%Y-%m-%d")
-        print(f"[dailyreport] Fetching prices for {ticker} from {start_date}")
+        print(f"[dailyreport] 1 Fetching prices for {ticker} from {start_date}")
         prices = fdr.DataReader(ticker + ("/KRW" if asset_type in ["가상자산"] else ""), start_date)["Close"]
         print(f"[dailyreport] Prices type: {prices.dtype}")
         
@@ -94,12 +94,21 @@ def get_news_summary(ticker, asset_type, num_news=3):
         print(f"[dailyreport] Error fetching news for {ticker}: {e}")
         return [{"title": "뉴스 조회 실패", "summary": "API 호출 중 오류 발생"}]
 
-def get_industry_trends(sector, num_trends=2):
+def get_industry_trends(sector, num_trends=2, user_id="") :
     print(f"[dailyreport] get_industry_trends: sector={sector}, num_trends={num_trends}")
     # DB에서 섹터별 티커 정보 조회
     db = asset_management.connect_mysql()
     cursor = db.cursor()
-    cursor.execute("SELECT sector, ticker FROM ASSET_INFO_TB")
+    cursor.execute("""SELECT DISTINCT 
+            a.ticker as sector_name,
+            a.sector as ticker
+        FROM asset.USER_ASSET_LIST_TB AS u
+        JOIN asset.ASSET_INFO_TB AS a
+        ON TRIM(u.asset_name) = TRIM(COALESCE(a.asset_name, a.`asset_name`))
+        AND u.asset_type = a.asset_type
+        WHERE u.user_id = %s
+        ; 
+        """, (user_id,))
     rows = cursor.fetchall()
     db.close()
     sector_tickers = {}
@@ -116,12 +125,12 @@ def get_industry_trends(sector, num_trends=2):
                 returns.append(0.0)
             else:
                 try:
-                    print(f"[dailyreport] Fetching prices for {ticker} in sector {s} from {start_date}")
+                    print(f"[dailyreport] 2 Fetching prices for {ticker} in sector {s} from {start_date}")
                     prices = fdr.DataReader(ticker + ("/KRW" if s in ["Crypto", "Currency", "가상자산"] else ""), start_date)["Close"].astype(float)
                     returns.append(prices.pct_change().fillna(0).mean())
                     print(f"[dailyreport] Return for {ticker}: {returns[-1]}")
                 except Exception as e:
-                    print(f"[dailyreport] Error fetching prices for {ticker}: {e}")
+                    print(f"[dailyreport] Error 3 fetching prices for {ticker}: {e}")
                     returns.append(0.0)
         trends[s] = np.mean(returns) if returns else 0.0
         print(f"[dailyreport] Sector {s} average return: {trends[s]}")
@@ -210,7 +219,7 @@ def daily_report(user_id):
             news = get_news_summary(ticker, assetType, num_news=3)
 
             # 4. 산업 동향 1~2개 (Feedback)
-            trends = get_industry_trends(sector, num_trends=2)
+            trends = get_industry_trends(sector, num_trends=2, user_id=user_id)
 
             reports.append({
                 "assetId": ticker,
