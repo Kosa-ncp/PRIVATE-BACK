@@ -121,8 +121,8 @@ def diagnosis(user_id):
             if row["asset_type"] in ["예적금", "현금"]:
                 values = pd.Series(float(row["quantity"]) * float(row["average_price"]), index=pd.date_range(start_date, "2025-09-22"))
             else:
-                values = float(fdr.DataReader(row["assetId"] + ("/KRW" if row["asset_type"] == "가상자산" else ""),
-                                        start_date)["Close"]) * float(row["quantity"])
+                values = fdr.DataReader(row["assetId"] + ("/KRW" if row["asset_type"] == "가상자산" else ""),
+                                        start_date)["Close"] * float(row["quantity"])
             portfolio_values += values
         rolling_max = portfolio_values.cummax()
         drawdown = (portfolio_values - rolling_max) / rolling_max
