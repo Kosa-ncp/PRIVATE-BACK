@@ -10,6 +10,7 @@ import asset_management
 import os
 from dotenv import load_dotenv
 import chatbotLogic.composition as composition
+from flask import jsonify
 
 
 load_dotenv()
@@ -232,4 +233,8 @@ def daily_report(user_id):
     
     except Exception as e:
         print(f"[dailyreport] Error in daily_report: {e}")
-        return {"status": "error", "message": str(e)}
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500
+
