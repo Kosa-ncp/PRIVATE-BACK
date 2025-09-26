@@ -177,7 +177,7 @@ def daily_report(user_id):
                 datetime.now().strftime("%Y-%m-%d")
             )["Close"].iloc[-1])
             if x["assetType"] in ["국내주식", "해외주식", "가상자산"]
-            else float(x["averagePrice"]),
+            else float(x["purchasePrice"]),
             axis=1
         )
         print(f"[dailyreport] currentPrice calculated:\n{portfolio[['ticker', 'currentPrice']]}")
@@ -185,7 +185,7 @@ def daily_report(user_id):
 
         # 수익률 계산
         portfolio["return"] = portfolio.apply(
-            lambda x: 0 if x["assetType"] in ["예적금", "현금"] else (float(x["currentPrice"]) - float(x["averagePrice"])) / float(x["averagePrice"]),
+            lambda x: 0 if x["assetType"] in ["예적금", "현금"] else (float(x["currentPrice"]) - float(x["purchasePrice"])) / float(x["purchasePrice"]),
             axis=1
         )
         print(f"[dailyreport] Return calculated:\n{portfolio[['ticker', 'return']]}")
