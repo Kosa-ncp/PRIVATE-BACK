@@ -61,7 +61,7 @@ SELECT_LIST_SQL = """
             register_date AS openDate,
             expire_date   AS maturityDate
       FROM USER_ASSET_LIST_TB 
-     WHERE user_id = %s
+     WHERE user_id = '%s'
 """
 
 # 추가
@@ -593,7 +593,7 @@ def get_user_dashboard(user_id):
     sql = """
         SELECT * 
           FROM USER_ASSET_LIST_TB 
-         WHERE user_id = %s
+         WHERE user_id = '%s'
     """
     print("실행 SQL: ", sql, user_id)
 
@@ -657,7 +657,7 @@ def get_user_dashboard(user_id):
     sql = f"""
         SELECT COUNT(DISTINCT asset_name)
           FROM USER_ASSET_LIST_TB
-         WHERE user_id = {user_id}
+         WHERE user_id = '{user_id}'
     """
     print("실행 SQL: ", sql)
 
